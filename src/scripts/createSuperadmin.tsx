@@ -16,68 +16,85 @@ export const CreateSuperadminUtility = () => {
     const createSuperadmin = async () => {
       setStatus("Working...");
 
-      // 1. Try to sign up the user
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-        email: SUPERADMIN_EMAIL,
-        password: SUPERADMIN_PASSWORD,
-      });
+      try {
+        // 1. Try to sign up the user
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+          email: SUPERADMIN_EMAIL,
+          password: SUPERADMIN_PASSWORD,
+        });
 
-      if (signUpError && !signUpError.message.includes("User already registered")) {
-        setStatus(`Failed to sign up: ${signUpError.message}`);
-        toast.error(`Sign up failed: ${signUpError.message}`);
-        return;
-      }
-
-      // Find the user id (works even if already registered)
-      let userId = signUpData?.user?.id;
-      if (!userId) {
-        // Get the user by email (for already registered cases)
-        const { data: users, error: fetchError } = await supabase
-          .from("user_roles")
-          .select("user_id")
-          .limit(1);
-        if (fetchError) {
-          setStatus(`Fetch user error: ${fetchError.message}`);
-          toast.error(`User query error: ${fetchError.message}`);
+        if (signUpError && !signUpError.message.includes("User already registered")) {
+          setStatus(`Failed to sign up: ${signUpError.message}`);
+          toast.error(`Sign up failed: ${signUpError.message}`);
           return;
         }
-        // Supabase does not expose a direct way, so must login and get id
-        // Or require running this right after signup.
-        setStatus(`User already exists. Please login as this user to get user_id and assign manually.`);
-        toast.warning(
-          "User exists. To promote, log in as this user, check their session id, and add 'superadmin' to user_roles."
-        );
-        return;
-      }
 
-      // 2. Assign role in user_roles
-      const { error: insertRoleError } = await supabase
-        .from("user_roles")
-        .insert([{ user_id: userId, role: "superadmin" }]);
+        // Find the user id
+        let userId = signUpData?.user?.id;
+        
+        if (!userId) {
+          // Try to get user via login if already registered
+          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+            email: SUPERADMIN_EMAIL,
+            password: SUPERADMIN_PASSWORD,
+          });
+          
+          if (signInError) {
+            setStatus(`Login error: ${signInError.message}`);
+            toast.error(`Login failed: ${signInError.message}`);
+            return;
+          }
+          
+          userId = signInData?.user?.id;
+        }
+        
+        if (!userId) {
+          setStatus("Failed to get user ID. Please try again.");
+          toast.error("User creation/login failed");
+          return;
+        }
 
-      if (insertRoleError?.message?.includes("duplicate key value")) {
-        setStatus("Superadmin already assigned!");
-        toast.success("Superadmin already set up!");
-        return;
-      }
-      if (insertRoleError) {
-        setStatus(`Failed to assign role: ${insertRoleError.message}`);
-        toast.error(`Role grant failed: ${insertRoleError.message}`);
-        return;
-      }
+        // 2. Assign superadmin role in user_roles
+        const { error: insertRoleError } = await supabase
+          .from("user_roles")
+          .upsert([{ user_id: userId, role: "superadmin" }], { 
+            onConflict: 'user_id,role',
+            ignoreDuplicates: true 
+          });
 
-      setStatus("Superadmin account created and assigned successfully!");
-      toast.success("Superadmin created!");
+        if (insertRoleError) {
+          setStatus(`Failed to assign role: ${insertRoleError.message}`);
+          toast.error(`Role assignment failed: ${insertRoleError.message}`);
+          return;
+        }
+
+        setStatus("Superadmin account created and assigned successfully!");
+        toast.success("Superadmin created! You can now log in with these credentials.");
+      } catch (error: any) {
+        setStatus(`Unexpected error: ${error.message}`);
+        toast.error(`Error: ${error.message}`);
+      }
     };
+    
     createSuperadmin();
   }, []);
 
   return (
-    <div className="p-8 text-center">
-      <h1 className="text-xl font-bold">Superadmin Seeder Utility</h1>
-      <p>Status: {status || "Ready."}</p>
+    <div className="flex flex-col items-center justify-center min-h-screen p-8 bg-nexara-bg text-white">
+      <h1 className="text-2xl font-bold mb-4 text-nexara-accent">Superadmin Seeder Utility</h1>
+      <div className="p-6 rounded-lg bg-card border border-nexara-accent/50 max-w-md w-full">
+        <p className="mb-4">
+          <span className="font-bold">Status:</span> {status || "Ready."}
+        </p>
+        <div className="mt-6 p-4 bg-muted rounded-md border border-nexara-accent/30">
+          <p className="mb-2 font-medium">Superadmin Credentials:</p>
+          <p>Email: <span className="text-nexara-accent">{SUPERADMIN_EMAIL}</span></p>
+          <p>Password: <span className="text-nexara-accent">*****</span></p>
+        </div>
+        <p className="mt-6 text-sm text-gray-400">
+          Visit the login page and try the credentials above, or trigger the superadmin login by tapping the logo 7 times.
+        </p>
+      </div>
     </div>
   );
 };
-
-// To use: Temporarily mount <CreateSuperadminUtility /> in your app where only you can access.

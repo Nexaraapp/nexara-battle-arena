@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 export const AdminGestureDetector = () => {
   const [tapCount, setTapCount] = useState(0);
@@ -44,22 +45,39 @@ export const AdminGestureDetector = () => {
     setIsLoggingIn(true);
     
     try {
-      // Placeholder for Supabase auth - will be implemented when Supabase is connected
-      console.log("Admin login attempt:", { email, password });
+      // Use Supabase authentication
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
       
-      // Simulate login for now (this will be replaced with actual Supabase auth)
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      if (email === "admin@nexara.test" && password === "admin123") {
+      if (error) {
+        throw error;
+      }
+
+      // Check if user has admin role
+      const { data: roleData, error: roleError } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", data.user?.id)
+        .single();
+
+      if (roleError) {
+        console.error("Role check error:", roleError);
+        toast.error("Failed to check user role.");
+        return;
+      }
+
+      if (roleData?.role === "admin" || roleData?.role === "superadmin") {
         toast.success("Admin login successful");
-        // In a real implementation, we would navigate to admin dashboard
+        // Redirect to admin dashboard
         window.location.href = "/admin";
       } else {
-        toast.error("Invalid admin credentials");
+        toast.error("Access denied: Not an admin.");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Admin login error:", error);
-      toast.error("Login failed. Please try again.");
+      toast.error(error.message || "Login failed. Please try again.");
     } finally {
       setIsLoggingIn(false);
     }
