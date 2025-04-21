@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import {
   Card,
@@ -84,39 +83,38 @@ const Wallet = () => {
 
     const fetchWalletData = async (userId: string) => {
       try {
-        // For a new user, start with 0 balance instead of 125
-        setWalletBalance(0);
-
-        // For a new user, start with an empty transaction history
-        setTransactions([]);
+        // For a new user, start with 0 balance
+        let userBalance = 0;
+        let userTransactions: Transaction[] = [];
         
-        // In a real app, you would create/fetch wallet data from your database
-        // Example pseudocode (not implemented):
-        // const { data, error } = await supabase
-        //   .from('wallet_balances')
-        //   .select('*')
-        //   .eq('user_id', userId)
-        //   .single();
-        //
-        // if (!data) {
-        //   // Create new wallet for user with 0 balance
-        //   await supabase
-        //     .from('wallet_balances')
-        //     .insert({ user_id: userId, balance: 0 });
-        //   setWalletBalance(0);
-        // } else {
-        //   setWalletBalance(data.balance);
-        // }
-        //
-        // const { data: transactionsData } = await supabase
-        //   .from('wallet_transactions')
-        //   .select('*')
-        //   .eq('user_id', userId)
-        //   .order('created_at', { ascending: false });
-        //
-        // if (transactionsData) {
-        //   setTransactions(transactionsData);
-        // }
+        // Get existing transactions for this user
+        const { data: transactionData, error: transactionError } = await supabase
+          .from('transactions')
+          .select('*')
+          .eq('user_id', userId)
+          .order('date', { ascending: false });
+        
+        if (!transactionError && transactionData && transactionData.length > 0) {
+          // Map transactions to the format we need
+          userTransactions = transactionData.map((tx: any) => ({
+            id: tx.id,
+            type: tx.type,
+            amount: tx.amount,
+            date: tx.date,
+            status: tx.status
+          }));
+          
+          // Calculate balance from transactions
+          userBalance = transactionData.reduce((total: number, tx: any) => {
+            if (tx.status === 'completed') {
+              return total + tx.amount;
+            }
+            return total;
+          }, 0);
+        }
+        
+        setWalletBalance(userBalance);
+        setTransactions(userTransactions);
       } catch (error: any) {
         console.error("Error fetching wallet data:", error);
         toast.error("Failed to load wallet data");
@@ -132,54 +130,112 @@ const Wallet = () => {
     };
   }, [navigate]);
 
-  const handleWatchAd = () => {
+  const handleWatchAd = async () => {
     // Simulate watching an ad
     setShowAdDialog(false);
     
-    // In a real app, you would call an API to verify the ad was watched
-    // and update the user's balance
-    setWalletBalance((prev) => prev + 1);
-    
-    // Add transaction for the ad reward
-    const newTransaction = {
-      id: Date.now(),
-      type: "ad_reward",
-      amount: 1,
-      date: new Date().toISOString().split('T')[0],
-      status: "completed"
-    };
-    
-    setTransactions(prev => [newTransaction, ...prev]);
-    
-    toast.success("Thanks for watching! 1 coin added to your wallet.");
-  };
-
-  const handleBuyCoinPack = (packageId: number) => {
-    const selectedPackage = coinPackages.find(pkg => pkg.id === packageId);
-    if (selectedPackage) {
-      // In a real app, you would redirect to a payment gateway
-      toast.success(`Redirecting to payment for ${selectedPackage.coins} coins`);
+    try {
+      // In a real app, you would call an API to verify the ad was watched
+      const coinReward = 1;
       
-      // For demo, let's simulate a successful payment after a delay
-      setTimeout(() => {
-        setWalletBalance((prev) => prev + selectedPackage.coins);
-        toast.success(`${selectedPackage.coins} coins added to your wallet!`);
-        
-        // Add to transactions
-        const newTransaction = {
-          id: Date.now(),
-          type: "topup",
-          amount: selectedPackage.coins,
+      // Get current user session
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error("You must be logged in to earn coins");
+        return;
+      }
+      
+      // Add a transaction record for the ad reward
+      const { data, error } = await supabase
+        .from('transactions')
+        .insert({
+          user_id: session.user.id,
+          type: "ad_reward",
+          amount: coinReward,
           date: new Date().toISOString().split('T')[0],
           status: "completed"
-        };
-        
-        setTransactions([newTransaction, ...transactions]);
-      }, 2000);
+        })
+        .select();
+      
+      if (error) {
+        throw error;
+      }
+      
+      // Update state
+      const newTransaction = {
+        id: data[0].id,
+        type: "ad_reward",
+        amount: coinReward,
+        date: data[0].date,
+        status: "completed"
+      };
+      
+      setWalletBalance((prev) => prev + coinReward);
+      setTransactions(prev => [newTransaction, ...prev]);
+      
+      toast.success("Thanks for watching! 1 coin added to your wallet.");
+    } catch (error: any) {
+      console.error("Error adding ad reward:", error);
+      toast.error("Failed to add coins. Please try again later.");
     }
   };
 
-  const handleWithdrawSubmit = (e: React.FormEvent) => {
+  const handleBuyCoinPack = async (packageId: number) => {
+    const selectedPackage = coinPackages.find(pkg => pkg.id === packageId);
+    if (selectedPackage) {
+      try {
+        // Get current user session
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          toast.error("You must be logged in to buy coins");
+          return;
+        }
+        
+        toast.success(`Redirecting to payment for ${selectedPackage.coins} coins`);
+        
+        // For demo, let's simulate a successful payment after a delay
+        setTimeout(async () => {
+          try {
+            // Create a transaction record for top-up (pending until confirmed by admin)
+            const { data, error } = await supabase
+              .from('transactions')
+              .insert({
+                user_id: session.user.id,
+                type: "topup",
+                amount: selectedPackage.coins,
+                date: new Date().toISOString().split('T')[0],
+                status: "pending" // Will be set to completed after admin approval
+              })
+              .select();
+            
+            if (error) {
+              throw error;
+            }
+            
+            // Add to transactions state
+            const newTransaction = {
+              id: data[0].id,
+              type: "topup",
+              amount: selectedPackage.coins,
+              date: data[0].date,
+              status: "pending"
+            };
+            
+            setTransactions(prev => [newTransaction, ...prev]);
+            toast.success(`Top-up request submitted. Coins will be added after admin approval.`);
+          } catch (error: any) {
+            console.error("Error recording top-up transaction:", error);
+            toast.error("Failed to submit top-up. Please try again later.");
+          }
+        }, 1500);
+      } catch (error: any) {
+        console.error("Error handling coin pack purchase:", error);
+        toast.error("Failed to process purchase. Please try again later.");
+      }
+    }
+  };
+
+  const handleWithdrawSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const amount = parseInt(withdrawAmount);
     
@@ -193,21 +249,46 @@ const Wallet = () => {
       return;
     }
     
-    // In a real app, you would submit a withdrawal request to your backend
-    toast.success(`Withdrawal request for ${amount} coins submitted. Upload payment QR.`);
-    
-    // Add to transactions as pending
-    const newTransaction = {
-      id: Date.now(),
-      type: "withdrawal",
-      amount: -amount,
-      date: new Date().toISOString().split('T')[0],
-      status: "pending"
-    };
-    
-    setTransactions([newTransaction, ...transactions]);
-    setWalletBalance((prev) => prev - amount);
-    setWithdrawAmount("");
+    try {
+      // Get current user session
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error("You must be logged in to withdraw coins");
+        return;
+      }
+      
+      // Create a transaction record for withdrawal (pending)
+      const { data, error } = await supabase
+        .from('transactions')
+        .insert({
+          user_id: session.user.id,
+          type: "withdrawal",
+          amount: -amount, // Negative amount for withdrawals
+          date: new Date().toISOString().split('T')[0],
+          status: "pending" // Will be updated by admin/superadmin
+        })
+        .select();
+      
+      if (error) {
+        throw error;
+      }
+      
+      // Add to transactions state
+      const newTransaction = {
+        id: data[0].id,
+        type: "withdrawal",
+        amount: -amount,
+        date: data[0].date,
+        status: "pending"
+      };
+      
+      setTransactions(prev => [newTransaction, ...prev]);
+      toast.success(`Withdrawal request for ${amount} coins submitted. Upload payment QR.`);
+      setWithdrawAmount("");
+    } catch (error: any) {
+      console.error("Error submitting withdrawal:", error);
+      toast.error("Failed to submit withdrawal. Please try again later.");
+    }
   };
   
   if (isLoading) {
@@ -393,7 +474,7 @@ const Wallet = () => {
                   <p className="text-sm text-gray-500">Total Earned</p>
                   <p className="text-2xl font-medium">
                     {transactions
-                      .filter(t => t.amount > 0)
+                      .filter(t => t.amount > 0 && t.status === 'completed')
                       .reduce((sum, t) => sum + t.amount, 0)} coins
                   </p>
                 </div>
@@ -401,7 +482,7 @@ const Wallet = () => {
                   <p className="text-sm text-gray-500">Total Spent</p>
                   <p className="text-2xl font-medium">
                     {Math.abs(transactions
-                      .filter(t => t.amount < 0 && t.type !== "withdrawal")
+                      .filter(t => t.amount < 0 && t.type !== "withdrawal" && t.status === 'completed')
                       .reduce((sum, t) => sum + t.amount, 0))} coins
                   </p>
                 </div>
@@ -417,7 +498,7 @@ const Wallet = () => {
                   <p className="text-sm text-gray-500">Ad Rewards</p>
                   <p className="text-2xl font-medium">
                     {transactions
-                      .filter(t => t.type === "ad_reward")
+                      .filter(t => t.type === "ad_reward" && t.status === 'completed')
                       .reduce((sum, t) => sum + t.amount, 0)} coins
                   </p>
                 </div>

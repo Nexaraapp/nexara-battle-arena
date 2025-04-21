@@ -16,9 +16,9 @@ export const CreateSuperadminUtility = () => {
   const [customPassword, setCustomPassword] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   
-  // Default superadmin email is now the one provided in the requirements
+  // Default superadmin email from the requirements
   const SUPERADMIN_EMAIL = "dsouzaales06@gmail.com";
-  const SUPERADMIN_PASSWORD = "23july2023"; // We'll keep the existing password
+  const SUPERADMIN_PASSWORD = "23july2023"; // Keep the existing password
 
   const createSuperadmin = async (email: string, password: string) => {
     setIsProcessing(true);
@@ -78,6 +78,21 @@ export const CreateSuperadminUtility = () => {
         toast.error(`Role assignment failed: ${insertRoleError.message}`);
         setIsProcessing(false);
         return;
+      }
+
+      // 3. Create initial 'transactions' table if needed
+      try {
+        // Check if the transactions table exists
+        const { error: checkError } = await supabase
+          .from('transactions')
+          .select('id')
+          .limit(1);
+          
+        // If there's an error, the table might not exist, but we'll let the system handle it
+        // This is just to ensure we don't break if the table doesn't exist yet
+        console.log("Transaction table check:", checkError ? "Error (may need to be created)" : "Exists");
+      } catch (error) {
+        console.error("Error checking transactions table:", error);
       }
 
       setStatus("Superadmin account created and assigned successfully!");

@@ -26,8 +26,8 @@ export const SuperadminGestureDetector = () => {
 
   // User search and coin management
   const [searchEmail, setSearchEmail] = useState("");
-  const [searchResults, setSearchResults] = useState<Array<{id: string, email: string}>>([]);
-  const [selectedUser, setSelectedUser] = useState<{id: string, email: string} | null>(null);
+  const [searchResults, setSearchResults] = useState<Array<{id: string, email: string | null}>>([]);
+  const [selectedUser, setSelectedUser] = useState<{id: string, email: string | null} | null>(null);
   const [coinsToAssign, setCoinsToAssign] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [isAssigningCoins, setIsAssigningCoins] = useState(false);
@@ -116,21 +116,39 @@ export const SuperadminGestureDetector = () => {
     setSelectedUser(null);
 
     try {
-      // Search for user by email in auth users
-      const { data, error } = await supabase.auth.admin.listUsers();
+      // Search for users by email
+      const { data: userData, error: userError } = await supabase.auth.admin.listUsers();
       
-      if (error) {
-        console.error("User search error:", error);
+      if (userError) {
+        console.error("User search error:", userError);
         toast.error("Failed to search users. Admin API might be restricted.");
+        
+        // Try fallback method with public profiles if exists
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, email')
+          .ilike('email', `%${searchEmail}%`);
+
+        if (profilesError || !profilesData) {
+          toast.error("Could not search users through any available method");
+          setIsSearching(false);
+          return;
+        }
+
+        setSearchResults(profilesData);
+        if (profilesData.length === 0) {
+          toast.error("No users found with that email");
+        }
+        
         return;
       }
 
       // Filter users by email
-      const filteredUsers = data?.users
+      const filteredUsers = userData?.users
         .filter(user => user.email && user.email.toLowerCase().includes(searchEmail.toLowerCase()))
         .map(user => ({
           id: user.id,
-          email: user.email || 'No email'
+          email: user.email
         })) || [];
 
       setSearchResults(filteredUsers);
@@ -146,7 +164,7 @@ export const SuperadminGestureDetector = () => {
     }
   };
 
-  const selectUser = (user: {id: string, email: string}) => {
+  const selectUser = (user: {id: string, email: string | null}) => {
     setSelectedUser(user);
   };
 
@@ -165,22 +183,28 @@ export const SuperadminGestureDetector = () => {
     setIsAssigningCoins(true);
 
     try {
-      // Create a transaction record for the coin assignment in the correct table
+      // Get current user session to record who assigned the coins
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      // Create a transaction record for the coin assignment
       const { error } = await supabase
-        .from("transactions")
+        .from('transactions')
         .insert({
           user_id: selectedUser.id,
           type: "admin_reward",
           amount: coins,
           status: "completed",
-          date: new Date().toISOString().split('T')[0]
+          date: new Date().toISOString().split('T')[0],
+          admin_id: session?.user?.id || null,
+          notes: `Assigned by admin/superadmin`
         });
 
       if (error) {
-        throw error;
+        console.error("Transaction insert error:", error);
+        throw new Error("Failed to record transaction");
       }
 
-      toast.success(`Successfully assigned ${coins} coins to ${selectedUser.email}`);
+      toast.success(`Successfully assigned ${coins} coins to ${selectedUser.email || 'user'}`);
       setCoinsToAssign("");
       setSelectedUser(null);
     } catch (error: any) {
@@ -292,7 +316,7 @@ export const SuperadminGestureDetector = () => {
                   >
                     <div className="flex items-center">
                       <User className="mr-2 h-4 w-4 text-gray-400" />
-                      <span>{user.email}</span>
+                      <span>{user.email || 'No email'}</span>
                     </div>
                     {selectedUser?.id === user.id && (
                       <ArrowRight className="h-4 w-4 text-nexara-accent" />
@@ -304,7 +328,7 @@ export const SuperadminGestureDetector = () => {
             
             {selectedUser && (
               <div className="mt-6 space-y-4 pt-4 border-t border-nexara-accent/20">
-                <Label>Assign Coins to {selectedUser.email}</Label>
+                <Label>Assign Coins to {selectedUser.email || 'Selected User'}</Label>
                 
                 <div className="flex items-center gap-3">
                   <div className="relative flex-1">
