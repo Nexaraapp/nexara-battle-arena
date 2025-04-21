@@ -48,10 +48,11 @@ const Wallet = () => {
   const [activeTab, setActiveTab] = useState("overview");
   const [showAdDialog, setShowAdDialog] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState("");
-  const [walletBalance, setWalletBalance] = useState(0);
+  const [walletBalance, setWalletBalance] = useState(0); // Default to 0 coins for new users
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
+  const [showWelcomeDialog, setShowWelcomeDialog] = useState(false);
   
   const coinPackages: CoinPackage[] = [
     { id: 1, coins: 20, amount: "₹20", popular: false },
@@ -72,6 +73,13 @@ const Wallet = () => {
       
       setUser(session.user);
       fetchWalletData(session.user.id);
+      
+      // Check if this is a first-time user
+      const firstTimeUserKey = `welcome_shown_${session.user.id}`;
+      if (!localStorage.getItem(firstTimeUserKey)) {
+        setShowWelcomeDialog(true);
+        localStorage.setItem(firstTimeUserKey, 'true');
+      }
     };
 
     const fetchWalletData = async (userId: string) => {
@@ -132,6 +140,17 @@ const Wallet = () => {
     // and update the user's balance
     setWalletBalance((prev) => prev + 1);
     
+    // Add transaction for the ad reward
+    const newTransaction = {
+      id: Date.now(),
+      type: "ad_reward",
+      amount: 1,
+      date: new Date().toISOString().split('T')[0],
+      status: "completed"
+    };
+    
+    setTransactions(prev => [newTransaction, ...prev]);
+    
     toast.success("Thanks for watching! 1 coin added to your wallet.");
   };
 
@@ -148,7 +167,7 @@ const Wallet = () => {
         
         // Add to transactions
         const newTransaction = {
-          id: transactions.length + 1,
+          id: Date.now(),
           type: "topup",
           amount: selectedPackage.coins,
           date: new Date().toISOString().split('T')[0],
@@ -179,7 +198,7 @@ const Wallet = () => {
     
     // Add to transactions as pending
     const newTransaction = {
-      id: transactions.length + 1,
+      id: Date.now(),
       type: "withdrawal",
       amount: -amount,
       date: new Date().toISOString().split('T')[0],
@@ -491,6 +510,7 @@ const Wallet = () => {
         </TabsContent>
       </Tabs>
 
+      {/* Ad Dialog */}
       <Dialog open={showAdDialog} onOpenChange={setShowAdDialog}>
         <DialogContent className="bg-nexara-bg border-nexara-accent neon-border">
           <DialogHeader>
@@ -509,6 +529,44 @@ const Wallet = () => {
               I've Watched the Ad
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Welcome Dialog */}
+      <Dialog open={showWelcomeDialog} onOpenChange={setShowWelcomeDialog}>
+        <DialogContent className="bg-nexara-bg border-nexara-accent neon-border max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-nexara-accent">Welcome to Nexara BattleField!</DialogTitle>
+            <DialogDescription>Your journey begins here</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <h3 className="font-medium">Getting Started</h3>
+              <p className="text-sm text-gray-300">
+                Welcome to Nexara BattleField! To get started, you'll need coins to join matches. You can earn coins by:
+              </p>
+              <ul className="text-sm text-gray-300 space-y-1 list-disc pl-5">
+                <li>Watching ads (1 coin per ad)</li>
+                <li>Purchasing coin packages</li>
+                <li>Winning tournaments</li>
+              </ul>
+            </div>
+            <div className="space-y-2">
+              <h3 className="font-medium">Join Matches</h3>
+              <p className="text-sm text-gray-300">
+                Browse available matches and enter tournaments to compete for prizes. Entry fees vary by match type.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <h3 className="font-medium">Need Help?</h3>
+              <p className="text-sm text-gray-300">
+                Visit the profile section for support or check notifications for updates about your matches and withdrawals.
+              </p>
+            </div>
+          </div>
+          <Button onClick={() => setShowWelcomeDialog(false)} className="w-full game-button">
+            Let's Go!
+          </Button>
         </DialogContent>
       </Dialog>
     </div>

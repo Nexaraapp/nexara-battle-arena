@@ -4,6 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Shield } from "lucide-react";
 
 /**
  * Superadmin Seeder Utility (for development/initial setup only!)
@@ -12,11 +14,14 @@ export const CreateSuperadminUtility = () => {
   const [status, setStatus] = useState<null | string>(null);
   const [customEmail, setCustomEmail] = useState("");
   const [customPassword, setCustomPassword] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false);
   
+  // Default superadmin email is now the one provided in the requirements
   const SUPERADMIN_EMAIL = "dsouzaales06@gmail.com";
-  const SUPERADMIN_PASSWORD = "23july2023"; // Updated password to be more secure
+  const SUPERADMIN_PASSWORD = "23july2023"; // We'll keep the existing password
 
   const createSuperadmin = async (email: string, password: string) => {
+    setIsProcessing(true);
     setStatus(`Working on creating superadmin for ${email}...`);
 
     try {
@@ -29,6 +34,7 @@ export const CreateSuperadminUtility = () => {
       if (signUpError && !signUpError.message.includes("User already registered")) {
         setStatus(`Failed to sign up: ${signUpError.message}`);
         toast.error(`Sign up failed: ${signUpError.message}`);
+        setIsProcessing(false);
         return;
       }
 
@@ -45,6 +51,7 @@ export const CreateSuperadminUtility = () => {
         if (signInError) {
           setStatus(`Login error: ${signInError.message}`);
           toast.error(`Login failed: ${signInError.message}`);
+          setIsProcessing(false);
           return;
         }
         
@@ -54,6 +61,7 @@ export const CreateSuperadminUtility = () => {
       if (!userId) {
         setStatus("Failed to get user ID. Please try again.");
         toast.error("User creation/login failed");
+        setIsProcessing(false);
         return;
       }
 
@@ -68,14 +76,25 @@ export const CreateSuperadminUtility = () => {
       if (insertRoleError) {
         setStatus(`Failed to assign role: ${insertRoleError.message}`);
         toast.error(`Role assignment failed: ${insertRoleError.message}`);
+        setIsProcessing(false);
         return;
       }
 
       setStatus("Superadmin account created and assigned successfully!");
       toast.success(`Superadmin created for ${email}! You can now log in with these credentials.`);
+      
+      // Offer to redirect to login
+      setTimeout(() => {
+        if (confirm("Superadmin created successfully. Would you like to login now?")) {
+          window.location.href = "/login";
+        }
+      }, 1500);
+      
     } catch (error: any) {
       setStatus(`Unexpected error: ${error.message}`);
       toast.error(`Error: ${error.message}`);
+    } finally {
+      setIsProcessing(false);
     }
   };
   
@@ -97,9 +116,18 @@ export const CreateSuperadminUtility = () => {
     <div className="flex flex-col items-center justify-center min-h-screen p-8 bg-nexara-bg text-white">
       <h1 className="text-2xl font-bold mb-4 text-nexara-accent">Superadmin Seeder Utility</h1>
       <div className="p-6 rounded-lg bg-card border border-nexara-accent/50 max-w-md w-full">
+        <Alert className="mb-4 bg-green-900/20 border-green-700">
+          <Shield className="h-5 w-5 text-green-500" />
+          <AlertTitle>Automatic Setup</AlertTitle>
+          <AlertDescription className="text-gray-300">
+            Creating superadmin account for the requested email automatically.
+          </AlertDescription>
+        </Alert>
+        
         <p className="mb-4">
           <span className="font-bold">Status:</span> {status || "Ready."}
         </p>
+        
         <div className="mt-6 p-4 bg-muted rounded-md border border-nexara-accent/30">
           <p className="mb-2 font-medium">Default Superadmin Credentials:</p>
           <p>Email: <span className="text-nexara-accent">{SUPERADMIN_EMAIL}</span></p>
@@ -117,6 +145,7 @@ export const CreateSuperadminUtility = () => {
                   value={customEmail}
                   onChange={(e) => setCustomEmail(e.target.value)}
                   className="bg-muted border-nexara-accent/30"
+                  disabled={isProcessing}
                 />
               </div>
               <div>
@@ -126,10 +155,11 @@ export const CreateSuperadminUtility = () => {
                   value={customPassword}
                   onChange={(e) => setCustomPassword(e.target.value)}
                   className="bg-muted border-nexara-accent/30"
+                  disabled={isProcessing}
                 />
               </div>
-              <Button type="submit" className="w-full game-button">
-                Create Custom Superadmin
+              <Button type="submit" className="w-full game-button" disabled={isProcessing}>
+                {isProcessing ? "Creating..." : "Create Custom Superadmin"}
               </Button>
             </div>
           </form>

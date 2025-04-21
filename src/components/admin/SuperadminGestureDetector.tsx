@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, User, Wallet, ArrowRight } from "lucide-react";
+import { Search, User, Wallet, ArrowRight, Coins } from "lucide-react";
 
 export const SuperadminGestureDetector = () => {
   // We can use e.g. 7 taps within 3 seconds to trigger superadmin modal
@@ -26,8 +26,8 @@ export const SuperadminGestureDetector = () => {
 
   // User search and coin management
   const [searchEmail, setSearchEmail] = useState("");
-  const [searchResults, setSearchResults] = useState<any[]>([]);
-  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [searchResults, setSearchResults] = useState<Array<{id: string, email: string}>>([]);
+  const [selectedUser, setSelectedUser] = useState<{id: string, email: string} | null>(null);
   const [coinsToAssign, setCoinsToAssign] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [isAssigningCoins, setIsAssigningCoins] = useState(false);
@@ -116,22 +116,26 @@ export const SuperadminGestureDetector = () => {
     setSelectedUser(null);
 
     try {
-      // Search for user by email
-      const { data: userData, error: userError } = await supabase.auth.admin.listUsers();
+      // Search for user by email in auth users
+      const { data, error } = await supabase.auth.admin.listUsers();
       
-      if (userError) {
-        console.error("User search error:", userError);
+      if (error) {
+        console.error("User search error:", error);
         toast.error("Failed to search users. Admin API might be restricted.");
         return;
       }
 
-      const matchingUsers = userData?.users.filter(user => 
-        user.email?.toLowerCase().includes(searchEmail.toLowerCase())
-      ) || [];
+      // Filter users by email
+      const filteredUsers = data?.users
+        .filter(user => user.email && user.email.toLowerCase().includes(searchEmail.toLowerCase()))
+        .map(user => ({
+          id: user.id,
+          email: user.email || 'No email'
+        })) || [];
 
-      setSearchResults(matchingUsers);
+      setSearchResults(filteredUsers);
       
-      if (matchingUsers.length === 0) {
+      if (filteredUsers.length === 0) {
         toast.error("No users found with that email");
       }
     } catch (error: any) {
@@ -142,7 +146,7 @@ export const SuperadminGestureDetector = () => {
     }
   };
 
-  const selectUser = (user: any) => {
+  const selectUser = (user: {id: string, email: string}) => {
     setSelectedUser(user);
   };
 
@@ -161,25 +165,21 @@ export const SuperadminGestureDetector = () => {
     setIsAssigningCoins(true);
 
     try {
-      // In a real implementation, you'd update the user's wallet in a database table
-      // This is a placeholder for demonstration
-      
-      // Create a transaction record for the coin assignment
-      const { error: transactionError } = await supabase
+      // Create a transaction record for the coin assignment in the correct table
+      const { error } = await supabase
         .from("transactions")
         .insert({
           user_id: selectedUser.id,
           type: "admin_reward",
           amount: coins,
           status: "completed",
+          date: new Date().toISOString().split('T')[0]
         });
 
-      if (transactionError) {
-        throw transactionError;
+      if (error) {
+        throw error;
       }
 
-      // Update the user's wallet balance
-      // Note: In a real implementation, you'd have a wallet table
       toast.success(`Successfully assigned ${coins} coins to ${selectedUser.email}`);
       setCoinsToAssign("");
       setSelectedUser(null);
@@ -308,7 +308,7 @@ export const SuperadminGestureDetector = () => {
                 
                 <div className="flex items-center gap-3">
                   <div className="relative flex-1">
-                    <Wallet className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+                    <Coins className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
                     <Input
                       type="number"
                       placeholder="Number of coins"

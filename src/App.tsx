@@ -15,6 +15,7 @@ import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
 import AdminDashboard from "./pages/admin/Dashboard";
 import { CreateSuperadminUtility } from "./scripts/createSuperadmin";
+import { SuperadminGestureDetector } from "./components/admin/SuperadminGestureDetector";
 
 const queryClient = new QueryClient();
 
@@ -24,6 +25,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
+        <SuperadminGestureDetector />
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
