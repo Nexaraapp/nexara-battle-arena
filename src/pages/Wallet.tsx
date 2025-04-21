@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -14,50 +14,130 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Wallet as WalletIcon, ArrowDown, ArrowUp, Clock, Eye, File } from "lucide-react";
+import { Wallet as WalletIcon, ArrowDown, ArrowUp, Clock, Eye, File, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from "react-router-dom";
+
+interface Transaction {
+  id: number;
+  type: string;
+  amount: number;
+  date: string;
+  status: string;
+}
+
+interface CoinPackage {
+  id: number;
+  coins: number;
+  amount: string;
+  popular: boolean;
+}
 
 const Wallet = () => {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("overview");
   const [showAdDialog, setShowAdDialog] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState("");
-
-  const walletBalance = 125;
+  const [walletBalance, setWalletBalance] = useState(0);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [user, setUser] = useState<any>(null);
   
-  const transactions = [
-    { id: 1, type: "topup", amount: 50, date: "2023-04-20", status: "completed" },
-    { id: 2, type: "match_entry", amount: -25, date: "2023-04-19", status: "completed" },
-    { id: 3, type: "match_win", amount: 90, date: "2023-04-19", status: "completed" },
-    { id: 4, type: "withdrawal", amount: -100, date: "2023-04-18", status: "pending" },
-    { id: 5, type: "topup", amount: 100, date: "2023-04-17", status: "completed" },
-    { id: 6, type: "ad_reward", amount: 5, date: "2023-04-16", status: "completed" },
-  ];
-  
-  const coinPackages = [
+  const coinPackages: CoinPackage[] = [
     { id: 1, coins: 20, amount: "₹20", popular: false },
     { id: 2, coins: 60, amount: "₹50", popular: true },
     { id: 3, coins: 120, amount: "₹100", popular: false },
     { id: 4, coins: 300, amount: "₹250", popular: false },
   ];
 
+  useEffect(() => {
+    // Check authentication
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error("Please login to access your wallet");
+        navigate("/login");
+        return;
+      }
+      
+      setUser(session.user);
+      fetchWalletData(session.user.id);
+    };
+
+    const fetchWalletData = async (userId: string) => {
+      try {
+        // In a real app, you would fetch this from your wallet_balances table
+        // This is just a placeholder for now
+        setWalletBalance(125);
+
+        // In a real app, you would fetch real transactions
+        // For now, we'll use the sample data
+        setTransactions([
+          { id: 1, type: "topup", amount: 50, date: "2023-04-20", status: "completed" },
+          { id: 2, type: "match_entry", amount: -25, date: "2023-04-19", status: "completed" },
+          { id: 3, type: "match_win", amount: 90, date: "2023-04-19", status: "completed" },
+          { id: 4, type: "withdrawal", amount: -100, date: "2023-04-18", status: "pending" },
+          { id: 5, type: "topup", amount: 100, date: "2023-04-17", status: "completed" },
+          { id: 6, type: "ad_reward", amount: 5, date: "2023-04-16", status: "completed" },
+        ]);
+      } catch (error: any) {
+        console.error("Error fetching wallet data:", error);
+        toast.error("Failed to load wallet data");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    checkAuth();
+
+    return () => {
+      // Cleanup if needed
+    };
+  }, [navigate]);
+
   const handleWatchAd = () => {
     // Simulate watching an ad
     setShowAdDialog(false);
+    
+    // In a real app, you would call an API to verify the ad was watched
+    // and update the user's balance
+    setWalletBalance((prev) => prev + 1);
+    
     toast.success("Thanks for watching! 1 coin added to your wallet.");
   };
 
   const handleBuyCoinPack = (packageId: number) => {
     const selectedPackage = coinPackages.find(pkg => pkg.id === packageId);
     if (selectedPackage) {
+      // In a real app, you would redirect to a payment gateway
       toast.success(`Redirecting to payment for ${selectedPackage.coins} coins`);
+      
+      // For demo, let's simulate a successful payment after a delay
+      setTimeout(() => {
+        setWalletBalance((prev) => prev + selectedPackage.coins);
+        toast.success(`${selectedPackage.coins} coins added to your wallet!`);
+        
+        // Add to transactions
+        const newTransaction = {
+          id: transactions.length + 1,
+          type: "topup",
+          amount: selectedPackage.coins,
+          date: new Date().toISOString().split('T')[0],
+          status: "completed"
+        };
+        
+        setTransactions([newTransaction, ...transactions]);
+      }, 2000);
     }
   };
 
@@ -75,9 +155,31 @@ const Wallet = () => {
       return;
     }
     
+    // In a real app, you would submit a withdrawal request to your backend
     toast.success(`Withdrawal request for ${amount} coins submitted. Upload payment QR.`);
+    
+    // Add to transactions as pending
+    const newTransaction = {
+      id: transactions.length + 1,
+      type: "withdrawal",
+      amount: -amount,
+      date: new Date().toISOString().split('T')[0],
+      status: "pending"
+    };
+    
+    setTransactions([newTransaction, ...transactions]);
+    setWalletBalance((prev) => prev - amount);
     setWithdrawAmount("");
   };
+  
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh]">
+        <Loader2 className="h-10 w-10 animate-spin text-nexara-accent" />
+        <p className="mt-4 text-gray-400">Loading wallet data...</p>
+      </div>
+    );
+  }
   
   return (
     <div className="space-y-6">
@@ -108,6 +210,9 @@ const Wallet = () => {
               <DialogContent className="bg-nexara-bg border-nexara-accent neon-border">
                 <DialogHeader>
                   <DialogTitle className="text-nexara-accent">Buy Coins</DialogTitle>
+                  <DialogDescription className="text-gray-400">
+                    Choose a coin package to purchase
+                  </DialogDescription>
                 </DialogHeader>
                 <div className="grid grid-cols-2 gap-4 py-4">
                   {coinPackages.map((pkg) => (
@@ -142,6 +247,9 @@ const Wallet = () => {
                     <DialogContent className="bg-nexara-bg border-nexara-accent">
                       <DialogHeader>
                         <DialogTitle>Upload Payment QR Code</DialogTitle>
+                        <DialogDescription>
+                          Upload a screenshot of your payment QR code
+                        </DialogDescription>
                       </DialogHeader>
                       <div className="py-4">
                         <Input
@@ -171,6 +279,9 @@ const Wallet = () => {
               <DialogContent className="bg-nexara-bg border-nexara-accent neon-border">
                 <DialogHeader>
                   <DialogTitle className="text-nexara-accent">Withdraw Coins</DialogTitle>
+                  <DialogDescription>
+                    Enter the amount you want to withdraw
+                  </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleWithdrawSubmit} className="space-y-4 py-4">
                   <div>
@@ -194,6 +305,9 @@ const Wallet = () => {
                     <DialogContent className="bg-nexara-bg border-nexara-accent">
                       <DialogHeader>
                         <DialogTitle>Upload Payment QR Code</DialogTitle>
+                        <DialogDescription>
+                          Provide your payment details to receive funds
+                        </DialogDescription>
                       </DialogHeader>
                       <div className="py-4">
                         <Input
@@ -239,19 +353,35 @@ const Wallet = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <p className="text-sm text-gray-500">Total Earned</p>
-                  <p className="text-2xl font-medium">245 coins</p>
+                  <p className="text-2xl font-medium">
+                    {transactions
+                      .filter(t => t.amount > 0)
+                      .reduce((sum, t) => sum + t.amount, 0)} coins
+                  </p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-sm text-gray-500">Total Spent</p>
-                  <p className="text-2xl font-medium">120 coins</p>
+                  <p className="text-2xl font-medium">
+                    {Math.abs(transactions
+                      .filter(t => t.amount < 0 && t.type !== "withdrawal")
+                      .reduce((sum, t) => sum + t.amount, 0))} coins
+                  </p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-sm text-gray-500">Pending Withdrawals</p>
-                  <p className="text-2xl font-medium">100 coins</p>
+                  <p className="text-2xl font-medium">
+                    {Math.abs(transactions
+                      .filter(t => t.type === "withdrawal" && t.status === "pending")
+                      .reduce((sum, t) => sum + t.amount, 0))} coins
+                  </p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-sm text-gray-500">Ad Rewards</p>
-                  <p className="text-2xl font-medium">15 coins</p>
+                  <p className="text-2xl font-medium">
+                    {transactions
+                      .filter(t => t.type === "ad_reward")
+                      .reduce((sum, t) => sum + t.amount, 0)} coins
+                  </p>
                 </div>
               </div>
             </CardContent>
@@ -263,16 +393,23 @@ const Wallet = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                <div className="flex items-center justify-between rounded-lg bg-nexara-accent/10 p-3">
-                  <div className="flex items-center">
-                    <Clock className="h-5 w-5 mr-2 text-nexara-accent" />
-                    <div>
-                      <p className="font-medium">Withdrawal Processing</p>
-                      <p className="text-sm text-gray-400">100 coins - in review</p>
+                {transactions
+                  .filter(t => t.status === "pending")
+                  .map(transaction => (
+                    <div key={transaction.id} className="flex items-center justify-between rounded-lg bg-nexara-accent/10 p-3">
+                      <div className="flex items-center">
+                        <Clock className="h-5 w-5 mr-2 text-nexara-accent" />
+                        <div>
+                          <p className="font-medium capitalize">{transaction.type} Processing</p>
+                          <p className="text-sm text-gray-400">{Math.abs(transaction.amount)} coins - in review</p>
+                        </div>
+                      </div>
+                      <p className="text-sm text-gray-400">Processing</p>
                     </div>
-                  </div>
-                  <p className="text-sm text-gray-400">10:24:32</p>
-                </div>
+                  ))}
+                {transactions.filter(t => t.status === "pending").length === 0 && (
+                  <p className="text-center text-gray-400 py-4">No pending actions</p>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -284,47 +421,51 @@ const Wallet = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {transactions.map((transaction) => (
-                  <div 
-                    key={transaction.id} 
-                    className="flex items-center justify-between border-b border-gray-800 pb-3 last:border-0 last:pb-0"
-                  >
-                    <div className="flex items-center">
-                      <div className={`
-                        w-10 h-10 rounded-full flex items-center justify-center mr-3
-                        ${transaction.amount > 0 ? 'bg-green-900/20' : 'bg-red-900/20'}
-                      `}>
-                        {transaction.amount > 0 ? (
-                          <ArrowDown className={`h-5 w-5 text-green-500`} />
-                        ) : (
-                          <ArrowUp className={`h-5 w-5 text-red-500`} />
-                        )}
+                {transactions.length > 0 ? (
+                  transactions.map((transaction) => (
+                    <div 
+                      key={transaction.id} 
+                      className="flex items-center justify-between border-b border-gray-800 pb-3 last:border-0 last:pb-0"
+                    >
+                      <div className="flex items-center">
+                        <div className={`
+                          w-10 h-10 rounded-full flex items-center justify-center mr-3
+                          ${transaction.amount > 0 ? 'bg-green-900/20' : 'bg-red-900/20'}
+                        `}>
+                          {transaction.amount > 0 ? (
+                            <ArrowDown className={`h-5 w-5 text-green-500`} />
+                          ) : (
+                            <ArrowUp className={`h-5 w-5 text-red-500`} />
+                          )}
+                        </div>
+                        <div>
+                          <p className="font-medium capitalize">
+                            {transaction.type.replace('_', ' ')}
+                          </p>
+                          <p className="text-sm text-gray-400">
+                            {new Date(transaction.date).toLocaleDateString()}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-medium capitalize">
-                          {transaction.type.replace('_', ' ')}
+                      <div className="text-right">
+                        <p className={`font-medium ${
+                          transaction.amount > 0 ? 'text-green-500' : 'text-red-400'
+                        }`}>
+                          {transaction.amount > 0 ? '+' : ''}{transaction.amount} coins
                         </p>
-                        <p className="text-sm text-gray-400">
-                          {new Date(transaction.date).toLocaleDateString()}
+                        <p className={`text-xs ${
+                          transaction.status === 'completed' 
+                            ? 'text-gray-400' 
+                            : 'text-yellow-500'
+                        }`}>
+                          {transaction.status}
                         </p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className={`font-medium ${
-                        transaction.amount > 0 ? 'text-green-500' : 'text-red-400'
-                      }`}>
-                        {transaction.amount > 0 ? '+' : ''}{transaction.amount} coins
-                      </p>
-                      <p className={`text-xs ${
-                        transaction.status === 'completed' 
-                          ? 'text-gray-400' 
-                          : 'text-yellow-500'
-                      }`}>
-                        {transaction.status}
-                      </p>
-                    </div>
-                  </div>
-                ))}
+                  ))
+                ) : (
+                  <p className="text-center text-gray-400 py-4">No transactions yet</p>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -335,9 +476,10 @@ const Wallet = () => {
         <DialogContent className="bg-nexara-bg border-nexara-accent neon-border">
           <DialogHeader>
             <DialogTitle className="text-nexara-accent">Watch an Ad</DialogTitle>
+            <DialogDescription>Watch this short ad to earn 1 free coin</DialogDescription>
           </DialogHeader>
           <div className="py-8 text-center">
-            <div className="w-full h-40 bg-gray-800 flex items-center justify-center mb-4">
+            <div className="w-full h-40 bg-gray-800 flex items-center justify-center mb-4 flex-col">
               <p>Ad would appear here</p>
               <p className="text-gray-500">(Unity Ads integration)</p>
             </div>

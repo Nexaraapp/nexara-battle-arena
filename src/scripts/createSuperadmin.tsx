@@ -7,7 +7,7 @@ import { toast } from "sonner";
  * Superadmin Seeder Utility (for development/initial setup only!)
  */
 const SUPERADMIN_EMAIL = "dsouzaales06@gmail.com";
-const SUPERADMIN_PASSWORD = "23july";
+const SUPERADMIN_PASSWORD = "23july2023"; // Updated password to be more secure
 
 export const CreateSuperadminUtility = () => {
   const [status, setStatus] = useState<null | string>(null);

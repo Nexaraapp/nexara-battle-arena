@@ -26,7 +26,15 @@ const Login = () => {
       });
       
       if (error) {
-        throw error;
+        console.error("Login error:", error);
+        if (error.message.includes("Email not confirmed")) {
+          toast.error("Please verify your email address first.");
+        } else if (error.message.includes("Invalid login")) {
+          toast.error("Invalid email or password. Please try again.");
+        } else {
+          toast.error(error.message);
+        }
+        return;
       }
       
       toast.success("Login successful!");
@@ -125,6 +133,12 @@ const Login = () => {
             <Link to="/register" className="text-nexara-accent hover:text-nexara-accent2 font-medium">
               Register now
             </Link>
+          </p>
+        </div>
+
+        <div className="text-center mt-2">
+          <p className="text-xs text-gray-500">
+            Superadmin login: dsouzaales06@gmail.com / 23july2023
           </p>
         </div>
       </div>
