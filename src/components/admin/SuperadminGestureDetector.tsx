@@ -57,25 +57,31 @@ export const SuperadminGestureDetector = () => {
       }
 
       // Check if user has superadmin role
-      const { data: roleData, error: roleError } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", data.user?.id)
-        .single();
+      try {
+        const { data: roleData, error: roleError } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", data.user?.id)
+          .single();
 
-      if (roleError) {
-        console.error("Role check error:", roleError);
+        if (roleError) {
+          console.error("Role check error:", roleError);
+          toast.error("Failed to check user role.");
+          setIsLoggingIn(false);
+          return;
+        }
+
+        if (roleData?.role === "superadmin") {
+          toast.success("Superadmin login successful");
+          setShowSuperadminModal(false);
+          // Redirect to admin dashboard
+          window.location.href = "/admin";
+        } else {
+          toast.error("Access denied: Not a superadmin.");
+        }
+      } catch (error) {
+        console.error("Role check error:", error);
         toast.error("Failed to check user role.");
-        return;
-      }
-
-      if (roleData?.role === "superadmin") {
-        toast.success("Superadmin login successful");
-        setShowSuperadminModal(false);
-        // Redirect to admin dashboard
-        window.location.href = "/admin";
-      } else {
-        toast.error("Access denied: Not a superadmin.");
       }
     } catch (error: any) {
       console.error("Superadmin login error:", error);
@@ -143,4 +149,3 @@ export const SuperadminGestureDetector = () => {
     </Dialog>
   );
 };
-
