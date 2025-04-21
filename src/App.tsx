@@ -14,6 +14,7 @@ import Notifications from "./pages/Notifications";
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
 import AdminDashboard from "./pages/admin/Dashboard";
+import { CreateSuperadminUtility } from "./scripts/createSuperadmin";
 
 const queryClient = new QueryClient();
 
@@ -36,6 +37,9 @@ const App = () => (
           <Route path="/wallet" element={<MainLayout><Wallet /></MainLayout>} />
           <Route path="/profile" element={<MainLayout><Profile /></MainLayout>} />
           <Route path="/notifications" element={<MainLayout><Notifications /></MainLayout>} />
+          
+          {/* Temporary Superadmin Creator Utility */}
+          <Route path="/create-superadmin" element={<CreateSuperadminUtility />} />
           
           {/* 404 Page */}
           <Route path="*" element={<MainLayout><NotFound /></MainLayout>} />

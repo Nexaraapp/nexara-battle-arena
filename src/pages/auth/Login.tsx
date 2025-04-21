@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -18,18 +19,38 @@ const Login = () => {
     setIsLoading(true);
     
     try {
-      // Placeholder for Supabase auth - will be implemented when Supabase is connected
-      console.log("Login attempt:", { email, password });
+      // Use Supabase authentication
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
       
-      // Simulate login for now
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      if (error) {
+        throw error;
+      }
       
-      // For demo purposes, allow any login
       toast.success("Login successful!");
+      
+      // Check if user has superadmin role
+      const { data: roleData, error: roleError } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", data.user.id)
+        .single();
+        
+      if (roleError) {
+        console.error("Role check error:", roleError);
+      } else if (roleData?.role === "superadmin") {
+        // If superadmin, redirect to admin dashboard
+        navigate("/admin");
+        return;
+      }
+      
+      // Regular user, redirect to home
       navigate("/");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Login error:", error);
-      toast.error("Login failed. Please check your credentials.");
+      toast.error(error.message || "Login failed. Please check your credentials.");
     } finally {
       setIsLoading(false);
     }
