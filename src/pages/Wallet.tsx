@@ -76,20 +76,39 @@ const Wallet = () => {
 
     const fetchWalletData = async (userId: string) => {
       try {
-        // In a real app, you would fetch this from your wallet_balances table
-        // This is just a placeholder for now
-        setWalletBalance(125);
+        // For a new user, start with 0 balance instead of 125
+        setWalletBalance(0);
 
-        // In a real app, you would fetch real transactions
-        // For now, we'll use the sample data
-        setTransactions([
-          { id: 1, type: "topup", amount: 50, date: "2023-04-20", status: "completed" },
-          { id: 2, type: "match_entry", amount: -25, date: "2023-04-19", status: "completed" },
-          { id: 3, type: "match_win", amount: 90, date: "2023-04-19", status: "completed" },
-          { id: 4, type: "withdrawal", amount: -100, date: "2023-04-18", status: "pending" },
-          { id: 5, type: "topup", amount: 100, date: "2023-04-17", status: "completed" },
-          { id: 6, type: "ad_reward", amount: 5, date: "2023-04-16", status: "completed" },
-        ]);
+        // For a new user, start with an empty transaction history
+        setTransactions([]);
+        
+        // In a real app, you would create/fetch wallet data from your database
+        // Example pseudocode (not implemented):
+        // const { data, error } = await supabase
+        //   .from('wallet_balances')
+        //   .select('*')
+        //   .eq('user_id', userId)
+        //   .single();
+        //
+        // if (!data) {
+        //   // Create new wallet for user with 0 balance
+        //   await supabase
+        //     .from('wallet_balances')
+        //     .insert({ user_id: userId, balance: 0 });
+        //   setWalletBalance(0);
+        // } else {
+        //   setWalletBalance(data.balance);
+        // }
+        //
+        // const { data: transactionsData } = await supabase
+        //   .from('wallet_transactions')
+        //   .select('*')
+        //   .eq('user_id', userId)
+        //   .order('created_at', { ascending: false });
+        //
+        // if (transactionsData) {
+        //   setTransactions(transactionsData);
+        // }
       } catch (error: any) {
         console.error("Error fetching wallet data:", error);
         toast.error("Failed to load wallet data");

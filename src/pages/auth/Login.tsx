@@ -40,18 +40,22 @@ const Login = () => {
       toast.success("Login successful!");
       
       // Check if user has superadmin role
-      const { data: roleData, error: roleError } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", data.user.id)
-        .single();
-        
-      if (roleError) {
-        console.error("Role check error:", roleError);
-      } else if (roleData?.role === "superadmin") {
-        // If superadmin, redirect to admin dashboard
-        navigate("/admin");
-        return;
+      try {
+        const { data: roleData, error: roleError } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", data.user.id)
+          .single();
+          
+        if (roleData?.role === "superadmin") {
+          // If superadmin, redirect to admin dashboard
+          navigate("/admin");
+          return;
+        }
+      } catch (roleCheckError) {
+        console.error("Role check error:", roleCheckError);
+        // Don't block the login flow if role check fails
+        // Just log the error and continue to regular user flow
       }
       
       // Regular user, redirect to home
