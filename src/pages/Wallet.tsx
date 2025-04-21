@@ -26,14 +26,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
-
-interface Transaction {
-  id: number;
-  type: string;
-  amount: number;
-  date: string;
-  status: string;
-}
+import { Transaction } from "@/utils/transactionUtils";
 
 interface CoinPackage {
   id: number;
@@ -98,10 +91,14 @@ const Wallet = () => {
           // Map transactions to the format we need
           userTransactions = transactionData.map((tx: any) => ({
             id: tx.id,
+            user_id: tx.user_id,
             type: tx.type,
             amount: tx.amount,
             date: tx.date,
-            status: tx.status
+            status: tx.status,
+            admin_id: tx.admin_id,
+            match_id: tx.match_id,
+            notes: tx.notes
           }));
           
           // Calculate balance from transactions
@@ -162,8 +159,9 @@ const Wallet = () => {
       }
       
       // Update state
-      const newTransaction = {
+      const newTransaction: Transaction = {
         id: data[0].id,
+        user_id: session.user.id,
         type: "ad_reward",
         amount: coinReward,
         date: data[0].date,
@@ -213,8 +211,9 @@ const Wallet = () => {
             }
             
             // Add to transactions state
-            const newTransaction = {
+            const newTransaction: Transaction = {
               id: data[0].id,
+              user_id: session.user.id,
               type: "topup",
               amount: selectedPackage.coins,
               date: data[0].date,
@@ -274,8 +273,9 @@ const Wallet = () => {
       }
       
       // Add to transactions state
-      const newTransaction = {
+      const newTransaction: Transaction = {
         id: data[0].id,
+        user_id: session.user.id,
         type: "withdrawal",
         amount: -amount,
         date: data[0].date,
@@ -591,7 +591,6 @@ const Wallet = () => {
         </TabsContent>
       </Tabs>
 
-      {/* Ad Dialog */}
       <Dialog open={showAdDialog} onOpenChange={setShowAdDialog}>
         <DialogContent className="bg-nexara-bg border-nexara-accent neon-border">
           <DialogHeader>
@@ -613,7 +612,6 @@ const Wallet = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Welcome Dialog */}
       <Dialog open={showWelcomeDialog} onOpenChange={setShowWelcomeDialog}>
         <DialogContent className="bg-nexara-bg border-nexara-accent neon-border max-w-md">
           <DialogHeader>

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Trophy, Mail, Lock } from "lucide-react";
@@ -18,8 +17,8 @@ const Login = () => {
   useEffect(() => {
     // Check if already logged in
     const checkSession = async () => {
-      const { data } = await supabase.auth.getSession();
-      if (data.session) {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
         // Already logged in, redirect to appropriate page
         navigate("/");
       }
@@ -66,7 +65,14 @@ const Login = () => {
           // If superadmin, redirect to admin dashboard
           navigate("/admin");
           return;
+        } else if (roleData?.role === "admin") {
+          // If admin, redirect to admin dashboard
+          navigate("/admin");
+          return;
         }
+        
+        // If role check doesn't error but user doesn't have any special role,
+        // they're a regular user - continue to home
       } catch (roleCheckError) {
         console.error("Role check error:", roleCheckError);
         // Don't block the login flow if role check fails

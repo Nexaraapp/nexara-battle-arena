@@ -17,7 +17,7 @@ export type TransactionStatus = "pending" | "completed" | "rejected";
 
 // Transaction interface
 export interface Transaction {
-  id?: number;
+  id?: string; // Changed from number to string to match Supabase UUID
   user_id: string;
   type: TransactionType;
   amount: number;

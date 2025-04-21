@@ -14,6 +14,13 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Search, User, Wallet, ArrowRight, Coins } from "lucide-react";
+import { Transaction } from "@/utils/transactionUtils";
+
+// Define the user interface
+interface SearchUser {
+  id: string;
+  email: string | null;
+}
 
 export const SuperadminGestureDetector = () => {
   // We can use e.g. 7 taps within 3 seconds to trigger superadmin modal
@@ -26,8 +33,8 @@ export const SuperadminGestureDetector = () => {
 
   // User search and coin management
   const [searchEmail, setSearchEmail] = useState("");
-  const [searchResults, setSearchResults] = useState<Array<{id: string, email: string | null}>>([]);
-  const [selectedUser, setSelectedUser] = useState<{id: string, email: string | null} | null>(null);
+  const [searchResults, setSearchResults] = useState<SearchUser[]>([]);
+  const [selectedUser, setSelectedUser] = useState<SearchUser | null>(null);
   const [coinsToAssign, setCoinsToAssign] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [isAssigningCoins, setIsAssigningCoins] = useState(false);
@@ -116,35 +123,45 @@ export const SuperadminGestureDetector = () => {
     setSelectedUser(null);
 
     try {
-      // Search for users by email
-      const { data: userData, error: userError } = await supabase.auth.admin.listUsers();
+      // Search for users by email using auth.admin.listUsers()
+      const { data: authData, error: authError } = await supabase.auth.admin.listUsers();
       
-      if (userError) {
-        console.error("User search error:", userError);
+      if (authError) {
+        console.error("User search error:", authError);
         toast.error("Failed to search users. Admin API might be restricted.");
         
-        // Try fallback method with public profiles if exists
-        const { data: profilesData, error: profilesError } = await supabase
-          .from('profiles')
-          .select('id, email')
-          .ilike('email', `%${searchEmail}%`);
+        try {
+          // Try fallback method - get users from auth list
+          const { data: authUsers, error } = await supabase.auth.admin.listUsers();
+          if (error || !authUsers) {
+            toast.error("Could not search users through any available method");
+            setIsSearching(false);
+            return;
+          }
 
-        if (profilesError || !profilesData) {
+          const filteredUsers = authUsers.users
+            .filter(user => user.email && user.email.toLowerCase().includes(searchEmail.toLowerCase()))
+            .map(user => ({
+              id: user.id,
+              email: user.email
+            }));
+
+          setSearchResults(filteredUsers);
+          
+          if (filteredUsers.length === 0) {
+            toast.error("No users found with that email");
+          }
+        } catch (error) {
           toast.error("Could not search users through any available method");
           setIsSearching(false);
           return;
-        }
-
-        setSearchResults(profilesData);
-        if (profilesData.length === 0) {
-          toast.error("No users found with that email");
         }
         
         return;
       }
 
       // Filter users by email
-      const filteredUsers = userData?.users
+      const filteredUsers = authData?.users
         .filter(user => user.email && user.email.toLowerCase().includes(searchEmail.toLowerCase()))
         .map(user => ({
           id: user.id,
@@ -164,7 +181,7 @@ export const SuperadminGestureDetector = () => {
     }
   };
 
-  const selectUser = (user: {id: string, email: string | null}) => {
+  const selectUser = (user: SearchUser) => {
     setSelectedUser(user);
   };
 

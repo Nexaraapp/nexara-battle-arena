@@ -63,7 +63,7 @@ export const joinMatch = async (matchId: string, userId: string): Promise<boolea
       return false;
     }
     
-    // 4. Check if user has enough coins
+    // 4. Check if user has enough coins - THIS IS THE CRITICAL CHECK
     const hasBalance = await hasEnoughCoins(userId, match.entry_fee);
     if (!hasBalance) {
       toast.error(`Insufficient balance. You need ${match.entry_fee} coins to join this match.`);
