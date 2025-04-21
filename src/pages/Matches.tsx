@@ -1,15 +1,19 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Search, Filter, Trophy, Clock } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 const Matches = () => {
   const [activeTab, setActiveTab] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [walletBalance, setWalletBalance] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+  const [user, setUser] = useState<any>(null);
 
   const matches = [
     {
@@ -74,6 +78,23 @@ const Matches = () => {
     },
   ];
 
+  useEffect(() => {
+    // Check if user is authenticated and get wallet balance
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        setUser(session.user);
+        
+        // In a real app, fetch the user's wallet balance from database
+        // For now, using 0 as default balance for new users
+        setWalletBalance(0);
+      }
+      setIsLoading(false);
+    };
+    
+    checkAuth();
+  }, []);
+
   const filteredMatches = matches.filter(match => {
     // Filter by tab selection
     if (activeTab !== "all" && match.type !== activeTab) return false;
@@ -84,9 +105,18 @@ const Matches = () => {
     return true;
   });
 
-  const handleJoinMatch = (matchId: number) => {
+  const handleJoinMatch = (matchId: number, entryFee: number) => {
+    // Check if user has enough coins
+    if (walletBalance < entryFee) {
+      toast.error(`Insufficient balance. You need ${entryFee} coins to join this match.`);
+      return;
+    }
+    
     // This would be connected to Supabase in a real implementation
-    toast.success(`Joining match #${matchId}. Your entry fee will be deducted.`);
+    toast.success(`Joining match #${matchId}. Your entry fee of ${entryFee} coins will be deducted.`);
+    
+    // Update local wallet balance
+    setWalletBalance(prevBalance => prevBalance - entryFee);
   };
 
   return (
@@ -112,6 +142,15 @@ const Matches = () => {
           </Button>
         </div>
       </header>
+
+      {!isLoading && user && (
+        <div className="flex justify-end">
+          <div className="bg-nexara-accent/10 px-4 py-2 rounded-md">
+            <span className="text-sm text-gray-400 mr-2">Wallet Balance:</span>
+            <span className="font-semibold">{walletBalance} coins</span>
+          </div>
+        </div>
+      )}
 
       <Tabs defaultValue="all" onValueChange={setActiveTab} className="w-full">
         <TabsList className="bg-muted mb-4 grid w-full grid-cols-3">
@@ -173,11 +212,11 @@ const Matches = () => {
                         <Button 
                           className={`game-button h-10 px-3 ${
                             match.status !== 'joinable' ? 'opacity-50 cursor-not-allowed' : ''
-                          }`}
-                          disabled={match.status !== 'joinable'}
-                          onClick={() => match.status === 'joinable' && handleJoinMatch(match.id)}
+                          } ${match.entryFee > walletBalance ? 'opacity-50 cursor-not-allowed' : ''}`}
+                          disabled={match.status !== 'joinable' || match.entryFee > walletBalance}
+                          onClick={() => match.status === 'joinable' && handleJoinMatch(match.id, match.entryFee)}
                         >
-                          Join
+                          {match.entryFee > walletBalance ? 'Insufficient coins' : 'Join'}
                         </Button>
                       </div>
                     </div>
