@@ -26,7 +26,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
-import { Transaction } from "@/utils/transactionUtils";
+import { Transaction, getUserTransactions, getUserWalletBalance } from "@/utils/transactionUtils";
 
 interface CoinPackage {
   id: number;
@@ -76,39 +76,13 @@ const Wallet = () => {
 
     const fetchWalletData = async (userId: string) => {
       try {
-        // For a new user, start with 0 balance
-        let userBalance = 0;
-        let userTransactions: Transaction[] = [];
+        setIsLoading(true);
         
-        // Get existing transactions for this user
-        const { data: transactionData, error: transactionError } = await supabase
-          .from('transactions')
-          .select('*')
-          .eq('user_id', userId)
-          .order('date', { ascending: false });
+        // Get wallet balance using utility function
+        const userBalance = await getUserWalletBalance(userId);
         
-        if (!transactionError && transactionData && transactionData.length > 0) {
-          // Map transactions to the format we need
-          userTransactions = transactionData.map((tx: any) => ({
-            id: tx.id,
-            user_id: tx.user_id,
-            type: tx.type,
-            amount: tx.amount,
-            date: tx.date,
-            status: tx.status,
-            admin_id: tx.admin_id,
-            match_id: tx.match_id,
-            notes: tx.notes
-          }));
-          
-          // Calculate balance from transactions
-          userBalance = transactionData.reduce((total: number, tx: any) => {
-            if (tx.status === 'completed') {
-              return total + tx.amount;
-            }
-            return total;
-          }, 0);
-        }
+        // Get transactions using utility function
+        const userTransactions = await getUserTransactions(userId);
         
         setWalletBalance(userBalance);
         setTransactions(userTransactions);
@@ -299,7 +273,7 @@ const Wallet = () => {
       </div>
     );
   }
-  
+
   return (
     <div className="space-y-6">
       <header>

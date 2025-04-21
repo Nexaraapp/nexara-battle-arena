@@ -114,3 +114,66 @@ export const getUserTransactions = async (userId: string): Promise<Transaction[]
     return [];
   }
 };
+
+/**
+ * Update a user's role to superadmin
+ */
+export const setUserAsSuperadmin = async (email: string): Promise<boolean> => {
+  try {
+    // First, get the user by email
+    const { data: userData, error: userError } = await supabase.auth.admin.listUsers();
+    
+    if (userError || !userData) {
+      console.error("Error fetching users:", userError);
+      throw userError;
+    }
+    
+    // Find the user with the matching email
+    const user = userData.users.find(u => u.email?.toLowerCase() === email.toLowerCase());
+    
+    if (!user) {
+      toast.error("User with this email not found");
+      return false;
+    }
+    
+    // Check if user already has a role
+    const { data: existingRole, error: roleError } = await supabase
+      .from('user_roles')
+      .select('*')
+      .eq('user_id', user.id)
+      .single();
+    
+    if (existingRole) {
+      // Update existing role
+      const { error: updateError } = await supabase
+        .from('user_roles')
+        .update({ role: 'superadmin' })
+        .eq('user_id', user.id);
+      
+      if (updateError) {
+        console.error("Error updating user role:", updateError);
+        throw updateError;
+      }
+    } else {
+      // Create new role entry
+      const { error: insertError } = await supabase
+        .from('user_roles')
+        .insert({
+          user_id: user.id,
+          role: 'superadmin'
+        });
+      
+      if (insertError) {
+        console.error("Error inserting user role:", insertError);
+        throw insertError;
+      }
+    }
+    
+    toast.success(`User ${email} has been set as superadmin`);
+    return true;
+  } catch (error: any) {
+    console.error("Failed to set user as superadmin:", error.message);
+    toast.error("Failed to update user role");
+    return false;
+  }
+};

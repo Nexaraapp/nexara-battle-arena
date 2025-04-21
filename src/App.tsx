@@ -16,6 +16,7 @@ import Register from "./pages/auth/Register";
 import AdminDashboard from "./pages/admin/Dashboard";
 import { CreateSuperadminUtility } from "./scripts/createSuperadmin";
 import { SuperadminGestureDetector } from "./components/admin/SuperadminGestureDetector";
+import { RouteGuard } from "./components/guards/RouteGuard";
 
 const queryClient = new QueryClient();
 
@@ -31,14 +32,50 @@ const App = () => (
           <Route path="/register" element={<Register />} />
           
           {/* Protected Admin Routes */}
-          <Route path="/admin" element={<MainLayout><AdminDashboard /></MainLayout>} />
+          <Route path="/admin" element={
+            <RouteGuard requireAuth requireAdmin>
+              <MainLayout>
+                <AdminDashboard />
+              </MainLayout>
+            </RouteGuard>
+          } />
           
           {/* Standard User Routes */}
-          <Route path="/" element={<MainLayout><Index /></MainLayout>} />
-          <Route path="/matches" element={<MainLayout><Matches /></MainLayout>} />
-          <Route path="/wallet" element={<MainLayout><Wallet /></MainLayout>} />
-          <Route path="/profile" element={<MainLayout><Profile /></MainLayout>} />
-          <Route path="/notifications" element={<MainLayout><Notifications /></MainLayout>} />
+          <Route path="/" element={
+            <RouteGuard requireAuth>
+              <MainLayout>
+                <Index />
+              </MainLayout>
+            </RouteGuard>
+          } />
+          <Route path="/matches" element={
+            <RouteGuard requireAuth>
+              <MainLayout>
+                <Matches />
+              </MainLayout>
+            </RouteGuard>
+          } />
+          <Route path="/wallet" element={
+            <RouteGuard requireAuth>
+              <MainLayout>
+                <Wallet />
+              </MainLayout>
+            </RouteGuard>
+          } />
+          <Route path="/profile" element={
+            <RouteGuard requireAuth>
+              <MainLayout>
+                <Profile />
+              </MainLayout>
+            </RouteGuard>
+          } />
+          <Route path="/notifications" element={
+            <RouteGuard requireAuth>
+              <MainLayout>
+                <Notifications />
+              </MainLayout>
+            </RouteGuard>
+          } />
           
           {/* Temporary Superadmin Creator Utility */}
           <Route path="/create-superadmin" element={<CreateSuperadminUtility />} />

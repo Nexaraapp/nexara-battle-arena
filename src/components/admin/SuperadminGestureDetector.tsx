@@ -14,7 +14,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Search, User, Wallet, ArrowRight, Coins } from "lucide-react";
-import { Transaction } from "@/utils/transactionUtils";
+import { setUserAsSuperadmin } from "@/utils/transactionUtils";
 
 // Define the user interface
 interface SearchUser {
