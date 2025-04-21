@@ -1,3 +1,4 @@
+
 import type { Config } from "tailwindcss";
 
 export default {
@@ -61,7 +62,23 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
+				},
+				// Gaming theme colors
+				nexara: {
+					bg: '#1A1F2C',
+					accent: '#9b87f5',
+					accent2: '#7E69AB',
+					accent3: '#6E59A5',
+					neon: '#8B5CF6',
+					highlight: '#D946EF',
+					warning: '#F97316',
+					info: '#0EA5E9'
 				}
+			},
+			backgroundImage: {
+				'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
+				'game-pattern': "url('/assets/game-bg-pattern.png')",
+				'hero-pattern': "linear-gradient(rgba(26, 31, 44, 0.8), rgba(26, 31, 44, 0.9)), url('/assets/hero-bg.jpg')"
 			},
 			borderRadius: {
 				lg: 'var(--radius)',
@@ -70,25 +87,31 @@ export default {
 			},
 			keyframes: {
 				'accordion-down': {
-					from: {
-						height: '0'
-					},
-					to: {
-						height: 'var(--radix-accordion-content-height)'
-					}
+					from: { height: '0' },
+					to: { height: 'var(--radix-accordion-content-height)' }
 				},
 				'accordion-up': {
-					from: {
-						height: 'var(--radix-accordion-content-height)'
+					from: { height: 'var(--radix-accordion-content-height)' },
+					to: { height: '0' }
+				},
+				'pulse-neon': {
+					'0%, 100%': { 
+						boxShadow: '0 0 10px rgba(155, 135, 245, 0.8), 0 0 20px rgba(155, 135, 245, 0.5)'
 					},
-					to: {
-						height: '0'
+					'50%': { 
+						boxShadow: '0 0 20px rgba(155, 135, 245, 1), 0 0 30px rgba(155, 135, 245, 0.8)'
 					}
+				},
+				float: {
+					'0%, 100%': { transform: 'translateY(0)' },
+					'50%': { transform: 'translateY(-10px)' }
 				}
 			},
 			animation: {
 				'accordion-down': 'accordion-down 0.2s ease-out',
-				'accordion-up': 'accordion-up 0.2s ease-out'
+				'accordion-up': 'accordion-up 0.2s ease-out',
+				'pulse-neon': 'pulse-neon 2s infinite',
+				'float': 'float 3s ease-in-out infinite'
 			}
 		}
 	},
