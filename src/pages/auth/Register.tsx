@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 const Register = () => {
   const navigate = useNavigate();
@@ -16,24 +17,34 @@ const Register = () => {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (password !== confirmPassword) {
       toast.error("Passwords don't match");
       return;
     }
-    
+
     setIsLoading(true);
-    
+
     try {
-      // Placeholder for Supabase auth - will be implemented when Supabase is connected
-      console.log("Registration attempt:", { email, password });
-      
-      // Simulate registration for now
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      toast.success("Registration successful! You got 10 free coins!");
-      navigate("/");
-    } catch (error) {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+      });
+
+      if (error) {
+        if (error.message.includes("User already registered")) {
+          toast.error("User already registered. Please log in.");
+        } else {
+          toast.error(error.message || "Registration failed.");
+        }
+        return;
+      }
+
+      toast.success(
+        "Registration successful! Please check your email to verify your account."
+      );
+      navigate("/login");
+    } catch (error: any) {
       console.error("Registration error:", error);
       toast.error("Registration failed. Please try again.");
     } finally {
@@ -55,7 +66,6 @@ const Register = () => {
             Join Nexara BattleField and get 10 free coins!
           </p>
         </div>
-        
         <div className="mt-8 space-y-6 neon-border p-6 rounded-lg bg-card">
           <form className="space-y-4" onSubmit={handleRegister}>
             <div>
@@ -71,7 +81,6 @@ const Register = () => {
                 className="mt-1 bg-muted border-nexara-accent/30"
               />
             </div>
-            
             <div>
               <Label htmlFor="password">Password</Label>
               <Input
@@ -85,7 +94,6 @@ const Register = () => {
                 className="mt-1 bg-muted border-nexara-accent/30"
               />
             </div>
-            
             <div>
               <Label htmlFor="confirmPassword">Confirm Password</Label>
               <Input
@@ -99,7 +107,6 @@ const Register = () => {
                 className="mt-1 bg-muted border-nexara-accent/30"
               />
             </div>
-
             <div className="pt-2">
               <Button
                 type="submit"
@@ -111,11 +118,13 @@ const Register = () => {
             </div>
           </form>
         </div>
-        
         <div className="text-center mt-4">
           <p className="text-sm text-gray-400">
             Already have an account?{" "}
-            <Link to="/login" className="text-nexara-accent hover:text-nexara-accent2 font-medium">
+            <Link
+              to="/login"
+              className="text-nexara-accent hover:text-nexara-accent2 font-medium"
+            >
               Sign in
             </Link>
           </p>
