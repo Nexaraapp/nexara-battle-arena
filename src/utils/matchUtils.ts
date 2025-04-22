@@ -1,6 +1,7 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { hasEnoughCoins, createTransaction } from "./transactionUtils";
+import { hasEnoughCoins, createTransaction, getSystemSettings } from "./transactionUtils";
 
 /**
  * Match types
@@ -41,6 +42,8 @@ export interface MatchParticipant {
   paid: boolean;
   created_at: string;
   user_email?: string;
+  kills?: number;
+  position?: number;
 }
 
 /**
@@ -193,7 +196,8 @@ export const updateMatchRoomDetails = async (
       .from('matches')
       .update({ 
         room_id: roomId,
-        room_password: roomPassword
+        room_password: roomPassword,
+        status: roomId ? 'active' : 'upcoming'
       })
       .eq('id', matchId);
     
@@ -209,12 +213,37 @@ export const updateMatchRoomDetails = async (
         .insert({
           admin_id: adminId,
           action: 'Match Room Updated',
-          details: `Updated room details for match ${matchId}`,
-          created_at: new Date().toISOString()
+          details: `Updated room details for match ${matchId}`
         });
     } catch (logError) {
       console.error("Error logging admin action:", logError);
       // Not critical, so we continue
+    }
+    
+    // Notify users who joined this match
+    const { data: participants } = await supabase
+      .from('match_entries')
+      .select('user_id')
+      .eq('match_id', matchId);
+      
+    if (participants && participants.length > 0) {
+      // Create notifications for participants
+      const notifications = participants.map(p => ({
+        user_id: p.user_id,
+        title: 'Match Room Updated',
+        message: `Room details for your match have been updated. Check the matches page.`,
+        type: 'match_update',
+        read: false,
+        created_at: new Date().toISOString()
+      }));
+      
+      // Insert notifications if we have a notifications table
+      try {
+        await supabase.from('notifications').insert(notifications);
+      } catch (error) {
+        console.log("Notifications table may not exist:", error);
+        // Not critical for core functionality, so we continue
+      }
     }
     
     return true;
@@ -255,11 +284,11 @@ export const getMatchParticipants = async (matchId: string): Promise<MatchPartic
             user_email: userData.user.email || 'Unknown'
           });
         } else {
-          participants.push(entry);
+          participants.push(entry as MatchParticipant);
         }
       } catch (userError) {
         console.error("Error getting user info:", userError);
-        participants.push(entry);
+        participants.push(entry as MatchParticipant);
       }
     }
     
@@ -278,9 +307,19 @@ export const createMatch = async (
   entryFee: number,
   prize: number,
   slots: number,
-  userId: string
+  adminId: string
 ): Promise<Match | null> => {
   try {
+    // Check profit margin against settings
+    const settings = await getSystemSettings();
+    const totalFees = entryFee * slots;
+    const profitPercent = ((totalFees - prize) / totalFees) * 100;
+    
+    if (profitPercent < settings.matchProfitMargin) {
+      toast.error(`Match profit margin too low. Must be at least ${settings.matchProfitMargin}%`);
+      return null;
+    }
+    
     const { data, error } = await supabase
       .from('matches')
       .insert({
@@ -290,7 +329,7 @@ export const createMatch = async (
         slots: slots,
         slots_filled: 0,
         status: 'upcoming',
-        created_by: userId,
+        created_by: adminId,
         created_at: new Date().toISOString()
       })
       .select()
@@ -301,9 +340,183 @@ export const createMatch = async (
       return null;
     }
     
+    // Log admin action
+    await supabase
+      .from('system_logs')
+      .insert({
+        admin_id: adminId,
+        action: 'Match Created',
+        details: `Created new ${matchType} match with ${slots} slots and ${entryFee} entry fee`
+      });
+      
+    toast.success(`New ${matchType} match created successfully`);
     return data as Match;
   } catch (error) {
     console.error("Error creating match:", error);
+    toast.error("Failed to create match");
     return null;
+  }
+};
+
+/**
+ * Award prize to match winners
+ */
+export const awardMatchPrizes = async (
+  matchId: string,
+  participants: { userId: string, position: number, kills: number }[],
+  adminId: string
+): Promise<boolean> => {
+  try {
+    // Fetch match details
+    const { data: matchData, error: matchError } = await supabase
+      .from('matches')
+      .select('*')
+      .eq('id', matchId)
+      .single();
+      
+    if (matchError || !matchData) {
+      console.error("Error fetching match:", matchError);
+      toast.error("Could not find match details");
+      return false;
+    }
+    
+    const match = matchData as Match;
+    
+    // Calculate prize distribution based on match type
+    let transactions = [];
+    
+    if (match.type === 'BattleRoyale') {
+      // Battle Royale: Position-based + kill rewards
+      const KILL_REWARD = 5; // 5 coins per kill
+      const POSITIONS_PRIZE = {
+        1: 0.5, // First place gets 50% of prize
+        2: 0.3, // Second place gets 30% of prize
+        3: 0.2  // Third place gets 20% of prize
+      };
+      
+      for (const p of participants) {
+        let prizeAmount = 0;
+        
+        // Position prize
+        if (p.position <= 3) {
+          prizeAmount += match.prize * POSITIONS_PRIZE[p.position as keyof typeof POSITIONS_PRIZE];
+        }
+        
+        // Kill rewards (only in Battle Royale)
+        if (p.kills > 0) {
+          prizeAmount += p.kills * KILL_REWARD;
+        }
+        
+        // Only add transaction if there's a prize
+        if (prizeAmount > 0) {
+          transactions.push({
+            user_id: p.userId,
+            type: 'match_win' as const,
+            amount: prizeAmount,
+            status: 'completed' as const,
+            match_id: matchId,
+            notes: `Prize for ${match.type} match. Position: ${p.position}, Kills: ${p.kills}`
+          });
+        }
+      }
+    } else {
+      // Clash Squad: Winner takes all, no kill rewards
+      const winner = participants.find(p => p.position === 1);
+      if (winner) {
+        transactions.push({
+          user_id: winner.userId,
+          type: 'match_win' as const,
+          amount: match.prize,
+          status: 'completed' as const,
+          match_id: matchId,
+          notes: `Prize for winning ${match.type} match`
+        });
+      }
+    }
+    
+    // Insert all prize transactions
+    for (const tx of transactions) {
+      const { error } = await supabase
+        .from('transactions')
+        .insert(tx);
+        
+      if (error) {
+        console.error("Error adding prize transaction:", error);
+        // Continue with other prizes even if one fails
+      }
+    }
+    
+    // Mark match as completed
+    const { error: updateError } = await supabase
+      .from('matches')
+      .update({ status: 'completed' })
+      .eq('id', matchId);
+    
+    if (updateError) {
+      console.error("Error updating match status:", updateError);
+      // Not critical, so we don't return false
+    }
+    
+    // Log admin action
+    await supabase
+      .from('system_logs')
+      .insert({
+        admin_id: adminId,
+        action: 'Match Prizes Awarded',
+        details: `Awarded prizes for match ${matchId}`
+      });
+    
+    toast.success("Match prizes awarded successfully");
+    return true;
+    
+  } catch (error) {
+    console.error("Error awarding match prizes:", error);
+    toast.error("Failed to award match prizes");
+    return false;
+  }
+};
+
+/**
+ * Get upcoming and active matches (for user view)
+ */
+export const getUpcomingMatches = async (): Promise<Match[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('matches')
+      .select('*')
+      .in('status', ['upcoming', 'active'])
+      .order('created_at', { ascending: false });
+      
+    if (error) {
+      console.error("Error fetching upcoming matches:", error);
+      throw error;
+    }
+    
+    return data as Match[] || [];
+  } catch (error) {
+    console.error("Error getting upcoming matches:", error);
+    return [];
+  }
+};
+
+/**
+ * Get all matches (for admin view)
+ */
+export const getAllMatches = async (): Promise<Match[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('matches')
+      .select('*')
+      .order('created_at', { ascending: false });
+      
+    if (error) {
+      console.error("Error fetching all matches:", error);
+      throw error;
+    }
+    
+    return data as Match[] || [];
+  } catch (error) {
+    console.error("Error getting all matches:", error);
+    return [];
   }
 };

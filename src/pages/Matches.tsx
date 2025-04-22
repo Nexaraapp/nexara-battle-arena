@@ -1,21 +1,21 @@
+
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
-import { Search, Filter, Trophy, Clock, Loader } from "lucide-react";
+import { Search, Filter, Trophy, Clock, Loader, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { Match, joinMatch } from "@/utils/matchUtils";
+import { Match, joinMatch, getUpcomingMatches } from "@/utils/matchUtils";
 
 const Matches = () => {
-  // Update state definition
+  // State definition
   const [matches, setMatches] = useState<Match[]>([]);
   const [activeTab, setActiveTab] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [walletBalance, setWalletBalance] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
-  // Update user session retrieval
   const [user, setUser] = useState<{ id: string } | null>(null);
 
   useEffect(() => {
@@ -27,6 +27,7 @@ const Matches = () => {
         fetchWalletBalance(session.user.id);
       }
       fetchMatches();
+      setIsLoading(false);
     };
     
     checkAuth();
@@ -52,7 +53,7 @@ const Matches = () => {
           table: 'transactions',
         },
         (payload) => {
-          if (user && payload.new.user_id === user.id) {
+          if (user && payload.new && payload.new.user_id === user.id) {
             fetchWalletBalance(user.id);
           }
         }
@@ -91,22 +92,15 @@ const Matches = () => {
   };
   
   const fetchMatches = async () => {
+    setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('matches')
-        .select('*')
-        .in('status', ['upcoming', 'active'])
-        .order('created_at', { ascending: false });
-        
-      if (error) {
-        console.error("Error fetching matches:", error);
-        toast.error("Failed to load matches");
-      } else {
-        // Type assertion to ensure Match type
-        setMatches(data as Match[] || []);
-      }
+      const matches = await getUpcomingMatches();
+      setMatches(matches);
     } catch (error) {
       console.error("Error in fetchMatches:", error);
+      toast.error("Failed to load matches");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -143,6 +137,19 @@ const Matches = () => {
     
     return true;
   });
+  
+  const getMatchTypeLabel = (type: string) => {
+    switch (type) {
+      case 'BattleRoyale':
+        return 'Battle Royale';
+      case 'ClashSolo':
+        return 'Clash Squad Solo';
+      case 'ClashDuo':
+        return 'Clash Squad Duo';
+      default:
+        return type;
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -217,16 +224,20 @@ const Matches = () => {
                             <div className={`text-xs px-2 py-1 rounded ${
                               isJoinable
                                 ? 'bg-green-900/40 text-green-400' 
-                                : 'bg-gray-800/40 text-gray-400'
+                                : match.status === 'active'
+                                  ? 'bg-blue-900/40 text-blue-400'
+                                  : 'bg-gray-800/40 text-gray-400'
                             }`}>
-                              {isJoinable ? 'Joinable' : 'Full'}
+                              {match.status === 'active' 
+                                ? 'In Progress' 
+                                : isJoinable 
+                                  ? 'Joinable' 
+                                  : 'Full'}
                             </div>
                           </div>
                           <div className="flex items-center gap-1 mt-1">
                             <h3 className="text-lg font-bold">
-                              {match.type === 'BattleRoyale' && 'Battle Royale'}
-                              {match.type === 'ClashSolo' && 'Clash Squad Solo'}
-                              {match.type === 'ClashDuo' && 'Clash Squad Duo'}
+                              {getMatchTypeLabel(match.type)}
                             </h3>
                             {match.type === "BattleRoyale" && (
                               <Trophy size={16} className="text-nexara-accent" />
@@ -246,15 +257,40 @@ const Matches = () => {
                               <div className="font-semibold">{match.slots_filled}/{match.slots}</div>
                             </div>
                           </div>
+                          
+                          {match.status === 'active' && match.room_id && match.room_password && (
+                            <div className="mt-3 p-2 bg-nexara-accent/10 rounded-md">
+                              <div className="text-xs text-nexara-accent mb-1">Room Details:</div>
+                              <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <div className="text-xs text-gray-400">ID:</div>
+                                  <div className="font-mono text-sm">{match.room_id}</div>
+                                </div>
+                                <div>
+                                  <div className="text-xs text-gray-400">Password:</div>
+                                  <div className="font-mono text-sm">{match.room_password}</div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </div>
                         <div className="h-full flex items-center justify-center p-4">
-                          <Button 
-                            className="game-button h-10 px-3"
-                            disabled={!isJoinable || match.entry_fee > walletBalance}
-                            onClick={() => isJoinable && handleJoinMatch(match.id, match.entry_fee)}
-                          >
-                            {match.entry_fee > walletBalance ? 'Insufficient coins' : 'Join'}
-                          </Button>
+                          {match.status === 'active' ? (
+                            <Button 
+                              className="game-button h-10 px-3"
+                              disabled={!match.room_id}
+                            >
+                              {match.room_id ? 'Join Game' : 'Waiting...'}
+                            </Button>
+                          ) : (
+                            <Button 
+                              className="game-button h-10 px-3"
+                              disabled={!isJoinable || match.entry_fee > walletBalance}
+                              onClick={() => isJoinable && handleJoinMatch(match.id, match.entry_fee)}
+                            >
+                              {match.entry_fee > walletBalance ? 'Insufficient coins' : 'Join'}
+                            </Button>
+                          )}
                         </div>
                       </div>
                     </CardContent>

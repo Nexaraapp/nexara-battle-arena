@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -5,15 +6,24 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { IndianRupee, Loader, CircleArrowUp, CircleArrowDown } from "lucide-react";
+import { 
+  IndianRupee, Loader, CircleArrowUp, CircleArrowDown, 
+  Coins, ArrowRight, Check, AlertCircle 
+} from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDistanceToNow } from "date-fns";
+import { 
+  COIN_PACKS, WITHDRAWAL_TIERS, 
+  hasEnoughRealCoins, getUserWithdrawalCount,
+  calculateWithdrawalPayout, getSystemSettings
+} from "@/utils/transactionUtils";
 
 const Wallet = () => {
   const [balance, setBalance] = useState(0);
+  const [realCoinsBalance, setRealCoinsBalance] = useState(0);
   const [withdrawalAmount, setWithdrawalAmount] = useState("");
-  const [topupAmount, setTopupAmount] = useState("");
+  const [selectedCoinPack, setSelectedCoinPack] = useState<number | null>(null);
   const [utrNumber, setUtrNumber] = useState("");
   const [isLoadingBalance, setIsLoadingBalance] = useState(true);
   const [isProcessingWithdrawal, setIsProcessingWithdrawal] = useState(false);
@@ -21,6 +31,10 @@ const Wallet = () => {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState("balance");
   const [withdrawalMsg, setWithdrawalMsg] = useState("");
+  const [withdrawalCount, setWithdrawalCount] = useState(0);
+  const [selectedWithdrawalTier, setSelectedWithdrawalTier] = useState<number | null>(null);
+  const [requireAdForWithdrawal, setRequireAdForWithdrawal] = useState(false);
+  const [adWatched, setAdWatched] = useState(false);
   
   const qrCodeUrl = "/lovable-uploads/50e5f998-8ecf-493d-aded-3c24db032cf0.png";
   
@@ -41,6 +55,11 @@ const Wallet = () => {
         }
       )
       .subscribe();
+      
+    // Fetch system settings
+    getSystemSettings().then(settings => {
+      setRequireAdForWithdrawal(settings.requireAdForWithdrawal);
+    });
       
     return () => {
       supabase.removeChannel(channel);
@@ -68,6 +87,7 @@ const Wallet = () => {
       
       const userId = session.user.id;
       
+      // Fetch transactions
       const { data: transactionsData, error: transactionsError } = await supabase
         .from('transactions')
         .select('*')
@@ -81,14 +101,30 @@ const Wallet = () => {
         setTransactions(transactionsData || []);
       }
       
+      // Calculate balances
       let calculatedBalance = 0;
+      let realCoins = 0;
+      
       if (transactionsData) {
-        calculatedBalance = transactionsData.reduce((total, tx) => {
-          return total + (tx.amount || 0);
-        }, 0);
+        transactionsData.forEach(tx => {
+          if (tx.status === 'completed') {
+            calculatedBalance += (tx.amount || 0);
+            
+            // Count real coins (from top-ups)
+            if (tx.is_real_coins) {
+              realCoins += (tx.amount || 0);
+            }
+          }
+        });
       }
       
       setBalance(calculatedBalance);
+      setRealCoinsBalance(realCoins);
+      
+      // Get withdrawal count
+      const count = await getUserWithdrawalCount(userId);
+      setWithdrawalCount(count);
+      
     } catch (error) {
       console.error("Error fetching wallet data:", error);
       toast.error("Failed to load wallet data");
@@ -100,9 +136,14 @@ const Wallet = () => {
   const handleTopupRequest = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    const topupAmountInt = parseInt(topupAmount);
-    if (isNaN(topupAmountInt) || topupAmountInt <= 0) {
-      toast.error("Please enter a valid amount");
+    if (!selectedCoinPack) {
+      toast.error("Please select a coin pack");
+      return;
+    }
+    
+    const coinPack = COIN_PACKS.find(pack => pack.id === selectedCoinPack);
+    if (!coinPack) {
+      toast.error("Invalid coin pack selected");
       return;
     }
     
@@ -125,11 +166,12 @@ const Wallet = () => {
         .from('transactions')
         .insert({
           user_id: session.user.id,
-          type: 'topup_request',
-          amount: topupAmountInt,
+          type: 'topup',
+          amount: coinPack.coins,
           status: 'pending',
           date: new Date().toISOString().split('T')[0],
-          notes: `Topup request. UTR: ${utrNumber}`
+          notes: `Topup request for ${coinPack.coins} coins (₹${coinPack.price}). UTR: ${utrNumber}`,
+          is_real_coins: true
         });
         
       if (error) {
@@ -138,7 +180,7 @@ const Wallet = () => {
       }
       
       toast.success("Top-up request submitted. It will be processed by an admin soon.");
-      setTopupAmount("");
+      setSelectedCoinPack(null);
       setUtrNumber("");
       setActiveTab("balance");
     } catch (error: any) {
@@ -152,19 +194,32 @@ const Wallet = () => {
   const handleWithdrawalRequest = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    const withdrawalAmountInt = parseInt(withdrawalAmount);
-    if (isNaN(withdrawalAmountInt) || withdrawalAmountInt <= 0) {
-      toast.error("Please enter a valid amount");
+    if (!selectedWithdrawalTier) {
+      toast.error("Please select a withdrawal amount");
       return;
     }
     
-    if (withdrawalAmountInt > balance) {
-      toast.error("Insufficient balance for this withdrawal");
+    const tier = WITHDRAWAL_TIERS.find(t => t.coins === selectedWithdrawalTier);
+    if (!tier) {
+      toast.error("Invalid withdrawal amount");
+      return;
+    }
+    
+    // Check if user has enough real coins
+    const hasEnough = await hasEnoughRealCoins(await getCurrentUserId(), tier.coins);
+    if (!hasEnough) {
+      toast.error(`Insufficient real coins. You need ${tier.coins} real coins for this withdrawal.`);
       return;
     }
     
     if (!withdrawalMsg) {
       toast.error("Please enter your UPI ID for payment");
+      return;
+    }
+    
+    // Check if ad viewing is required and handled
+    if (requireAdForWithdrawal && !adWatched) {
+      toast.error("Please watch an ad before withdrawal");
       return;
     }
     
@@ -178,11 +233,14 @@ const Wallet = () => {
         return;
       }
       
+      // Calculate payout amount
+      const payoutAmount = withdrawalCount < 5 ? tier.firstFivePayoutInr : tier.regularPayoutInr;
+      
       const { error: withdrawalError } = await supabase
         .from('withdrawals')
         .insert({
           user_id: session.user.id,
-          amount: withdrawalAmountInt,
+          amount: tier.coins,
           status: 'pending',
           created_at: new Date().toISOString()
         });
@@ -196,11 +254,12 @@ const Wallet = () => {
         .from('transactions')
         .insert({
           user_id: session.user.id,
-          type: 'withdrawal_request',
-          amount: -withdrawalAmountInt,
+          type: 'withdrawal',
+          amount: -tier.coins,
           status: 'pending',
           date: new Date().toISOString().split('T')[0],
-          notes: `Withdrawal request. UPI: ${withdrawalMsg}`
+          notes: `Withdrawal request for ${tier.coins} coins (₹${payoutAmount}). UPI: ${withdrawalMsg}`,
+          is_real_coins: true
         });
         
       if (transactionError) {
@@ -209,15 +268,21 @@ const Wallet = () => {
       }
       
       toast.success("Withdrawal request submitted. It will be processed by an admin soon.");
-      setWithdrawalAmount("");
+      setSelectedWithdrawalTier(null);
       setWithdrawalMsg("");
       setActiveTab("balance");
+      setAdWatched(false);
     } catch (error: any) {
       console.error("Error processing withdrawal:", error);
       toast.error(error.message || "Failed to process withdrawal request");
     } finally {
       setIsProcessingWithdrawal(false);
     }
+  };
+  
+  const simulateAdView = () => {
+    toast.success("Ad viewed successfully!");
+    setAdWatched(true);
   };
   
   return (
@@ -232,23 +297,43 @@ const Wallet = () => {
         </TabsList>
         
         <TabsContent value="balance" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Your Balance</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col items-center">
-              {isLoadingBalance ? (
-                <div className="py-8 flex justify-center">
-                  <Loader className="h-8 w-8 animate-spin text-nexara-accent" />
-                </div>
-              ) : (
-                <div className="py-8 text-center">
-                  <div className="text-4xl font-bold mb-2">{balance}</div>
-                  <div className="text-gray-400">Coins Available</div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Your Balance</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col items-center">
+                {isLoadingBalance ? (
+                  <div className="py-8 flex justify-center">
+                    <Loader className="h-8 w-8 animate-spin text-nexara-accent" />
+                  </div>
+                ) : (
+                  <div className="py-8 text-center">
+                    <div className="text-4xl font-bold mb-2">{balance}</div>
+                    <div className="text-gray-400">Coins Available</div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardHeader>
+                <CardTitle>Real Coins</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col items-center">
+                {isLoadingBalance ? (
+                  <div className="py-8 flex justify-center">
+                    <Loader className="h-8 w-8 animate-spin text-nexara-accent" />
+                  </div>
+                ) : (
+                  <div className="py-8 text-center">
+                    <div className="text-4xl font-bold mb-2">{realCoinsBalance}</div>
+                    <div className="text-gray-400">Available for Withdrawal</div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
           
           <h2 className="text-xl font-bold mt-6">Transaction History</h2>
           
@@ -270,10 +355,12 @@ const Wallet = () => {
                           <div>
                             <div className="font-medium">
                               {transaction.type === 'match_entry' && 'Match Entry Fee'}
-                              {transaction.type === 'match_reward' && 'Match Reward'}
+                              {transaction.type === 'match_win' && 'Match Reward'}
                               {transaction.type === 'admin_reward' && 'Admin Bonus'}
-                              {transaction.type === 'topup_request' && 'Top-up Request'}
-                              {transaction.type === 'withdrawal_request' && 'Withdrawal Request'}
+                              {transaction.type === 'topup' && 'Top-up'}
+                              {transaction.type === 'withdrawal' && 'Withdrawal'}
+                              {transaction.type === 'ad_reward' && 'Ad Reward'}
+                              {transaction.type === 'login_reward' && 'Login Reward'}
                             </div>
                             <div className="text-sm text-gray-400">
                               {transaction.date && (
@@ -318,16 +405,34 @@ const Wallet = () => {
             </CardHeader>
             <CardContent>
               <form onSubmit={handleTopupRequest} className="space-y-4">
-                <div>
-                  <Label htmlFor="amount">Amount (in coins)</Label>
-                  <Input
-                    id="amount"
-                    type="number"
-                    value={topupAmount}
-                    onChange={(e) => setTopupAmount(e.target.value)}
-                    placeholder="Enter amount to add"
-                    className="bg-muted"
-                  />
+                <div className="bg-nexara-accent/10 p-4 rounded-md mb-4">
+                  <h3 className="font-medium mb-2">Select a Coin Pack</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {COIN_PACKS.map((pack) => (
+                      <div 
+                        key={pack.id}
+                        onClick={() => setSelectedCoinPack(pack.id)}
+                        className={`cursor-pointer rounded-md border p-3 transition-all
+                          ${selectedCoinPack === pack.id 
+                            ? 'border-nexara-accent bg-nexara-accent/20' 
+                            : 'border-gray-600/30 hover:border-nexara-accent/30'}`}
+                      >
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="flex items-center">
+                            <Coins className="h-4 w-4 mr-1" />
+                            <span className="font-bold">{pack.coins}</span>
+                          </span>
+                          {selectedCoinPack === pack.id && (
+                            <Check className="h-4 w-4 text-nexara-accent" />
+                          )}
+                        </div>
+                        <div className="flex items-center text-nexara-accent">
+                          <IndianRupee className="h-3 w-3" />
+                          <span>{pack.price}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
                 
                 <div>
@@ -364,7 +469,7 @@ const Wallet = () => {
                 
                 <Button 
                   type="submit"
-                  disabled={isProcessingTopup}
+                  disabled={isProcessingTopup || !selectedCoinPack || !utrNumber}
                   className="w-full game-button"
                 >
                   {isProcessingTopup ? "Processing..." : "Submit Top-up Request"}
@@ -381,20 +486,63 @@ const Wallet = () => {
             </CardHeader>
             <CardContent>
               <form onSubmit={handleWithdrawalRequest} className="space-y-4">
-                <div className="bg-nexara-accent/10 p-4 rounded-md mb-2">
-                  <p className="font-medium">Available Balance: {balance} coins</p>
+                <div className="flex gap-3 mb-2">
+                  <div className="bg-nexara-accent/10 p-4 rounded-md flex-1">
+                    <p className="font-medium">Total Balance: {balance} coins</p>
+                  </div>
+                  <div className="bg-nexara-accent/10 p-4 rounded-md flex-1">
+                    <p className="font-medium">Real Coins: {realCoinsBalance} coins</p>
+                  </div>
                 </div>
                 
-                <div>
-                  <Label htmlFor="withdraw-amount">Amount (in coins)</Label>
-                  <Input
-                    id="withdraw-amount"
-                    type="number"
-                    value={withdrawalAmount}
-                    onChange={(e) => setWithdrawalAmount(e.target.value)}
-                    placeholder="Enter amount to withdraw"
-                    className="bg-muted"
-                  />
+                <div className="bg-yellow-900/20 p-3 rounded-md mb-2 flex items-center">
+                  <AlertCircle className="h-4 w-4 text-yellow-500 mr-2 flex-shrink-0" />
+                  <p className="text-sm text-yellow-500">
+                    Only real coins from top-ups can be withdrawn. Bonus coins and match rewards cannot be withdrawn.
+                  </p>
+                </div>
+                
+                <div className="space-y-3">
+                  <Label>Select Withdrawal Amount</Label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {WITHDRAWAL_TIERS.map((tier) => {
+                      // Calculate payout based on withdrawal history
+                      const payout = withdrawalCount < 5 ? tier.firstFivePayoutInr : tier.regularPayoutInr;
+                      
+                      return (
+                        <div 
+                          key={tier.coins}
+                          onClick={() => setSelectedWithdrawalTier(tier.coins)}
+                          className={`cursor-pointer rounded-md border p-3 transition-all
+                            ${selectedWithdrawalTier === tier.coins
+                              ? 'border-nexara-accent bg-nexara-accent/20' 
+                              : 'border-gray-600/30 hover:border-nexara-accent/30'}`}
+                        >
+                          <div className="flex justify-between items-center">
+                            <div>
+                              <div className="flex items-center mb-1">
+                                <Coins className="h-4 w-4 mr-1" />
+                                <span className="font-bold">{tier.coins} coins</span>
+                              </div>
+                              <div className="flex items-center text-nexara-accent">
+                                <ArrowRight className="h-3 w-3 mr-1" />
+                                <IndianRupee className="h-3 w-3" />
+                                <span>{payout}</span>
+                              </div>
+                              {withdrawalCount < 5 && (
+                                <div className="text-xs text-green-500 mt-1">
+                                  First 5 withdrawals bonus!
+                                </div>
+                              )}
+                            </div>
+                            {selectedWithdrawalTier === tier.coins && (
+                              <Check className="h-4 w-4 text-nexara-accent" />
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
                 
                 <div>
@@ -408,9 +556,29 @@ const Wallet = () => {
                   />
                 </div>
                 
+                {requireAdForWithdrawal && (
+                  <div className="border border-nexara-accent/30 rounded-md p-4 bg-nexara-accent/5">
+                    <p className="mb-3 text-center">Watch a short ad to enable withdrawal</p>
+                    <Button 
+                      type="button"
+                      onClick={simulateAdView}
+                      disabled={adWatched}
+                      className="w-full"
+                    >
+                      {adWatched ? "Ad Watched ✓" : "Watch Ad"}
+                    </Button>
+                  </div>
+                )}
+                
                 <Button 
                   type="submit"
-                  disabled={isProcessingWithdrawal || balance <= 0}
+                  disabled={
+                    isProcessingWithdrawal || 
+                    !selectedWithdrawalTier || 
+                    !withdrawalMsg || 
+                    realCoinsBalance <= 0 || 
+                    (requireAdForWithdrawal && !adWatched)
+                  }
                   className="w-full game-button"
                 >
                   {isProcessingWithdrawal ? "Processing..." : "Request Withdrawal"}

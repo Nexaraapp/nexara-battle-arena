@@ -116,40 +116,27 @@ export const SuperadminGestureDetector = () => {
     setSelectedUser(null);
 
     try {
-      // This is a simplified user search for demo purposes
-      // In a real app, you'd likely use an admin API or create a server function
-      const { data, error } = await supabase
-        .from('user_roles')
-        .select('user_id')
-        .limit(10);
-        
-      if (error) {
-        throw error;
+      const { data: userData, error: userError } = await supabase.auth.admin.listUsers();
+      
+      if (userError || !userData) {
+        console.error("Error fetching users:", userError);
+        throw new Error("Failed to search users");
       }
       
-      const userIds = data.map(role => role.user_id);
+      // Filter users by email
+      const filteredUsers: SearchUser[] = userData.users
+        .filter(user => 
+          typeof user.email === 'string' && 
+          user.email.toLowerCase().includes(searchEmail.toLowerCase())
+        )
+        .map(user => ({
+          id: user.id,
+          email: user.email
+        }));
       
-      // For each user ID, get their email from auth
-      const users: SearchUser[] = [];
+      setSearchResults(filteredUsers.slice(0, 10));
       
-      for (const id of userIds) {
-        try {
-          const { data: authUserData } = await supabase.auth.admin.getUserById(id);
-          if (authUserData?.user?.email?.toLowerCase().includes(searchEmail.toLowerCase())) {
-            users.push({
-              id: id,
-              email: authUserData.user.email
-            });
-          }
-        } catch (e) {
-          console.error("Error fetching user:", e);
-          // Skip this user
-        }
-      }
-      
-      setSearchResults(users);
-      
-      if (users.length === 0) {
+      if (filteredUsers.length === 0) {
         toast.error("No users found with that email");
       }
     } catch (error: any) {
@@ -192,7 +179,8 @@ export const SuperadminGestureDetector = () => {
           status: "completed",
           date: new Date().toISOString().split('T')[0],
           admin_id: session?.user?.id || null,
-          notes: `Assigned by admin/superadmin`
+          notes: `Assigned by admin/superadmin`,
+          is_real_coins: true
         });
 
       if (error) {
