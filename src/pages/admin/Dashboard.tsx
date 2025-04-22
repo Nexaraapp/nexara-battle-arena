@@ -38,7 +38,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
-import { UserSearchResult } from "@/utils/adminUtils";
+import { UserSearchResult, searchUsers } from "@/utils/adminUtils";
 
 // Define type for Match
 interface Match {
@@ -400,25 +400,11 @@ const Dashboard = () => {
     setSelectedUser(null);
 
     try {
-      // Get all users 
-      const { data: userData, error: userError } = await supabase.auth.admin.listUsers();
+      // Use the searchUsers utility function from adminUtils
+      const results = await searchUsers(searchEmail);
+      setSearchResults(results);
       
-      if (userError || !userData) {
-        console.error("Error fetching users:", userError);
-        throw new Error("Failed to search users");
-      }
-      
-      // Filter users by email containing the search term
-      const filteredUsers = userData.users.filter(user => 
-        user.email && user.email.toLowerCase().includes(searchEmail.toLowerCase())
-      );
-      
-      setSearchResults(filteredUsers.slice(0, 10).map(user => ({
-        id: user.id,
-        email: user.email || 'No email'
-      })));
-      
-      if (filteredUsers.length === 0) {
+      if (results.length === 0) {
         toast.error("No users found with that email");
       }
     } catch (error: any) {
