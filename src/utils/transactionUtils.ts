@@ -1,309 +1,180 @@
-
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
-import { SearchUser } from "./adminUtils";
 
-// Define coin pack interface
-interface CoinPack {
-  id: number;
-  coins: number;
-  price: number;
+// Define interface for user with email property
+interface UserWithEmail {
+  id: string;
+  email?: string;
 }
 
-// Define withdrawal tier interface
-interface WithdrawalTier {
-  coins: number;
-  firstFivePayoutInr: number;
-  regularPayoutInr: number;
-}
-
-// Define the system settings interface
-interface SystemSettings {
-  requireAdForWithdrawal: boolean;
-  matchProfitMargin: number;
-}
-
-// Define available coin packs
-export const COIN_PACKS: CoinPack[] = [
-  { id: 1, coins: 60, price: 100 },
-  { id: 2, coins: 120, price: 200 },
-  { id: 3, coins: 300, price: 500 },
-  { id: 4, coins: 600, price: 1000 },
-  { id: 5, coins: 1200, price: 2000 },
-  { id: 6, coins: 3000, price: 5000 }
+// Define coin packs for purchases
+export const COIN_PACKS = [
+  { id: 'basic', coins: 100, price: 99 },
+  { id: 'standard', coins: 500, price: 499 },
+  { id: 'premium', coins: 1000, price: 899 },
+  { id: 'elite', coins: 2500, price: 1999 }
 ];
 
 // Define withdrawal tiers
-export const WITHDRAWAL_TIERS: WithdrawalTier[] = [
-  { coins: 60, firstFivePayoutInr: 100, regularPayoutInr: 80 },
-  { coins: 120, firstFivePayoutInr: 200, regularPayoutInr: 160 },
-  { coins: 300, firstFivePayoutInr: 500, regularPayoutInr: 400 },
-  { coins: 600, firstFivePayoutInr: 1000, regularPayoutInr: 800 }
+export const WITHDRAWAL_TIERS = [
+  { amount: 100, minimumRealCoins: 50 },
+  { amount: 200, minimumRealCoins: 100 },
+  { amount: 500, minimumRealCoins: 250 },
+  { amount: 1000, minimumRealCoins: 500 }
 ];
 
-/**
- * Check if user has enough real coins for withdrawal
- */
-export const hasEnoughRealCoins = async (userId: string, amount: number): Promise<boolean> => {
+// Check if a user has enough real coins for withdrawal
+export const hasEnoughRealCoins = async (userId: string, requiredAmount: number): Promise<boolean> => {
   try {
-    // Get user's transactions
     const { data, error } = await supabase
       .from('transactions')
-      .select('*')
+      .select('amount')
       .eq('user_id', userId)
       .eq('is_real_coins', true)
       .eq('status', 'completed');
-    
+      
     if (error) {
-      console.error("Error fetching transactions:", error);
+      console.error("Error checking real coins:", error);
       return false;
     }
     
-    // Calculate real coins balance
-    let realCoinsBalance = 0;
-    
-    if (data) {
-      data.forEach(tx => {
-        realCoinsBalance += (tx.amount || 0);
-      });
-    }
-    
-    return realCoinsBalance >= amount;
+    const realCoins = data?.reduce((total, tx) => total + tx.amount, 0) || 0;
+    return realCoins >= requiredAmount;
   } catch (error) {
-    console.error("Error checking real coins:", error);
+    console.error("Error in hasEnoughRealCoins:", error);
     return false;
   }
 };
 
-/**
- * Get user's withdrawal count
- */
+// Get user's withdrawal count for limits
 export const getUserWithdrawalCount = async (userId: string): Promise<number> => {
   try {
-    const { data, error } = await supabase
-      .from('transactions')
-      .select('count')
-      .eq('user_id', userId)
-      .eq('type', 'withdrawal')
-      .eq('status', 'completed');
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     
+    const { count, error } = await supabase
+      .from('withdrawals')
+      .select('id', { count: 'exact' })
+      .eq('user_id', userId)
+      .gte('created_at', thirtyDaysAgo.toISOString())
+      .in('status', ['pending', 'completed']);
+      
     if (error) {
-      console.error("Error counting withdrawals:", error);
+      console.error("Error getting withdrawal count:", error);
       return 0;
     }
     
-    return data?.[0]?.count || 0;
+    return count || 0;
   } catch (error) {
     console.error("Error in getUserWithdrawalCount:", error);
     return 0;
   }
 };
 
-/**
- * Calculate withdrawal payout amount
- */
-export const calculateWithdrawalPayout = (coins: number, isFirstFive: boolean): number => {
-  const tier = WITHDRAWAL_TIERS.find(t => t.coins === coins);
-  if (!tier) return 0;
-  
-  return isFirstFive ? tier.firstFivePayoutInr : tier.regularPayoutInr;
+// Calculate withdrawal payout after platform fee
+export const calculateWithdrawalPayout = (amount: number): number => {
+  // Platform takes 10% fee
+  const fee = Math.ceil(amount * 0.1);
+  return amount - fee;
 };
 
-/**
- * Set a user as an admin
- */
-export const setUserAsAdmin = async (email: string, superadminId: string): Promise<boolean> => {
+// Function to get all transactions
+export const getAllTransactions = async () => {
   try {
-    // Find the user by email
-    const { data, error: userError } = await supabase.auth.admin.listUsers({
-      page: 1,
-      perPage: 100
-    });
-    
-    if (userError) {
-      throw new Error("Failed to search users");
-    }
-    
-    // Find user by email
-    const user = data.users.find(u => u.email?.toLowerCase() === email.toLowerCase());
-    
-    if (!user) {
-      toast.error("No user found with that email");
-      return false;
-    }
-    
-    // Check if user is already an admin
-    const { data: existingRole } = await supabase
-      .from('user_roles')
+    const { data, error } = await supabase
+      .from('transactions')
       .select('*')
-      .eq('user_id', user.id)
-      .eq('role', 'admin')
-      .single();
+      .order('date', { ascending: false });
       
-    if (existingRole) {
-      toast.info("User is already an Admin");
-      return true;
+    if (error) {
+      console.error("Error fetching transactions:", error);
+      return [];
     }
     
-    // Insert the admin role
-    const { error: roleError } = await supabase
-      .from('user_roles')
-      .insert({
-        user_id: user.id,
-        role: 'admin'
-      });
-      
-    if (roleError) {
-      throw new Error("Failed to assign admin role");
-    }
-    
-    // Log the action
-    await supabase
-      .from('system_logs')
-      .insert({
-        admin_id: superadminId,
-        action: 'Admin Created',
-        details: `User ${email} was set as admin`
-      });
-    
-    toast.success("Admin role assigned successfully!");
-    return true;
-  } catch (error: any) {
-    console.error("Error in setUserAsAdmin:", error);
-    toast.error(error.message || "Failed to set user as admin");
-    return false;
+    return data || [];
+  } catch (error) {
+    console.error("Error in getAllTransactions:", error);
+    return [];
   }
 };
 
-/**
- * Get system settings
- */
-export const getSystemSettings = async (): Promise<SystemSettings> => {
+// Function to get transactions by user ID
+export const getTransactionsByUserId = async (userId: string) => {
   try {
     const { data, error } = await supabase
-      .from('system_settings')
+      .from('transactions')
       .select('*')
-      .order('created_at', { ascending: false })
-      .limit(1)
+      .eq('user_id', userId)
+      .order('date', { ascending: false });
+      
+    if (error) {
+      console.error("Error fetching transactions:", error);
+      return [];
+    }
+    
+    return data || [];
+  } catch (error) {
+    console.error("Error in getTransactionsByUserId:", error);
+    return [];
+  }
+};
+
+// Function to get a transaction by ID
+export const getTransactionById = async (id: string) => {
+  try {
+    const { data, error } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('id', id)
       .single();
       
     if (error) {
-      console.error("Error fetching system settings:", error);
-      // Return default settings
-      return {
-        requireAdForWithdrawal: false,
-        matchProfitMargin: 40
-      };
+      console.error("Error fetching transaction:", error);
+      return null;
     }
     
-    return {
-      requireAdForWithdrawal: data.require_ad_for_withdrawal,
-      matchProfitMargin: data.match_profit_margin
-    };
+    return data || null;
   } catch (error) {
-    console.error("Error in getSystemSettings:", error);
-    // Return default settings
-    return {
-      requireAdForWithdrawal: false,
-      matchProfitMargin: 40
-    };
+    console.error("Error in getTransactionById:", error);
+    return null;
   }
 };
 
-/**
- * Update system settings
- */
-export const updateSystemSettings = async (
-  settings: SystemSettings,
-  adminId: string
-): Promise<boolean> => {
+// Get withdrawal by ID function - with email fix
+export const getWithdrawalById = async (id: string): Promise<any | null> => {
   try {
-    // Get current settings ID
-    const { data: currentSettings, error: fetchError } = await supabase
-      .from('system_settings')
-      .select('id')
-      .order('created_at', { ascending: false })
-      .limit(1)
+    const { data, error } = await supabase
+      .from('withdrawals')
+      .select('*')
+      .eq('id', id)
       .single();
-    
-    if (fetchError && fetchError.code !== 'PGRST116') {
-      // Only log as error if it's not a "not found" error
-      console.error("Error fetching current settings:", fetchError);
-      throw new Error("Failed to fetch current settings");
+      
+    if (error) {
+      console.error("Error fetching withdrawal:", error);
+      return null;
     }
     
-    let result;
-    
-    if (currentSettings) {
-      // Update existing settings
-      result = await supabase
-        .from('system_settings')
-        .update({
-          require_ad_for_withdrawal: settings.requireAdForWithdrawal,
-          match_profit_margin: settings.matchProfitMargin,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', currentSettings.id);
-    } else {
-      // Create new settings
-      result = await supabase
-        .from('system_settings')
-        .insert({
-          require_ad_for_withdrawal: settings.requireAdForWithdrawal,
-          match_profit_margin: settings.matchProfitMargin
-        });
+    if (data) {
+      // Get user details
+      const { data: userData, error: userError } = await supabase.auth.admin.getUserById(
+        data.user_id
+      );
+      
+      if (!userError && userData?.user) {
+        return {
+          ...data,
+          user: {
+            id: userData.user.id,
+            email: userData.user.email
+          }
+        };
+      }
+      
+      return data;
     }
     
-    if (result.error) {
-      throw new Error("Failed to update system settings");
-    }
-    
-    // Log the action
-    await supabase
-      .from('system_logs')
-      .insert({
-        admin_id: adminId,
-        action: 'Settings Updated',
-        details: `System settings updated: Require Ad: ${settings.requireAdForWithdrawal}, Profit Margin: ${settings.matchProfitMargin}%`
-      });
-    
-    return true;
-  } catch (error: any) {
-    console.error("Error in updateSystemSettings:", error);
-    toast.error(error.message || "Failed to update system settings");
-    return false;
+    return null;
+  } catch (error) {
+    console.error("Error in getWithdrawalById:", error);
+    return null;
   }
 };
-
-/**
- * Search for users by email pattern
- */
-export const searchUsers = async (emailPattern: string): Promise<SearchUser[]> => {
-  try {
-    const { data, error } = await supabase.auth.admin.listUsers({
-      page: 1,
-      perPage: 100
-    });
-    
-    if (error || !data.users) {
-      throw new Error("Failed to search users");
-    }
-    
-    // Filter users by email containing the search term
-    const filteredUsers = data.users
-      .filter(user => user.email && user.email.toLowerCase().includes(emailPattern.toLowerCase()))
-      .map(user => ({
-        id: user.id,
-        email: user.email
-      }))
-      .slice(0, 10); // Limit results
-    
-    return filteredUsers;
-  } catch (error: any) {
-    console.error("Error in searchUsers:", error);
-    throw error;
-  }
-};
-
-// Export interfaces
-export type { CoinPack, WithdrawalTier, SystemSettings };

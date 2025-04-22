@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -8,6 +7,15 @@ import { toast } from "sonner";
 interface SearchUser {
   id: string;
   email?: string;
+}
+
+/**
+ * Define interface for user data with email property
+ */
+interface UserWithEmail {
+  id: string;
+  email?: string;
+  created_at?: string;
 }
 
 /**
@@ -205,3 +213,50 @@ export const processWithdrawalRequest = async (
  * Export types for use in other files
  */
 export type { SearchUser };
+
+/**
+ * Get all admin users
+ */
+export const getAdminUsers = async (): Promise<UserWithEmail[]> => {
+  try {
+    // Get users with admin role
+    const { data: adminRoles, error: rolesError } = await supabase
+      .from('user_roles')
+      .select('user_id')
+      .eq('role', 'admin');
+      
+    if (rolesError) {
+      console.error("Error fetching admin roles:", rolesError);
+      return [];
+    }
+    
+    if (!adminRoles || adminRoles.length === 0) {
+      return [];
+    }
+    
+    // Get all admin users
+    const adminIds = adminRoles.map(role => role.user_id);
+    
+    // Fetch user data from auth.users
+    const { data: users, error: usersError } = await supabase.auth.admin.listUsers();
+    
+    if (usersError) {
+      console.error("Error fetching users:", usersError);
+      return [];
+    }
+    
+    // Filter users to just admins and include email
+    const adminUsers = users.users
+      .filter((user: UserWithEmail) => adminIds.includes(user.id))
+      .map((user: UserWithEmail) => ({
+        id: user.id,
+        email: user.email,
+        created_at: user.created_at
+      }));
+      
+    return adminUsers;
+  } catch (error) {
+    console.error("Error fetching admin users:", error);
+    return [];
+  }
+};

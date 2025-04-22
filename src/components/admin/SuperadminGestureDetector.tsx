@@ -11,6 +11,12 @@ interface UserSearchResult {
   email?: string;
 }
 
+// Define the User interface for Supabase auth users
+interface SupabaseAuthUser {
+  id: string;
+  email?: string;
+}
+
 export const SuperadminGestureDetector: React.FC<SuperadminGestureDetectorProps> = () => {
   const [clickCount, setClickCount] = useState(0);
   const [lastClickTime, setLastClickTime] = useState(0);
@@ -70,7 +76,7 @@ export const SuperadminGestureDetector: React.FC<SuperadminGestureDetectorProps>
 
       // Filter by email
       const foundUsers = users.users.filter(
-        user => user.email?.toLowerCase().includes(debugEmail.toLowerCase())
+        (user: SupabaseAuthUser) => user.email?.toLowerCase().includes(debugEmail.toLowerCase())
       );
 
       if (foundUsers.length === 0) {
@@ -80,7 +86,7 @@ export const SuperadminGestureDetector: React.FC<SuperadminGestureDetectorProps>
         return;
       }
 
-      setUserSearchResults(foundUsers.map(user => ({
+      setUserSearchResults(foundUsers.map((user: SupabaseAuthUser) => ({
         id: user.id,
         email: user.email
       })));
