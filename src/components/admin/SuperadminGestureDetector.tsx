@@ -3,6 +3,13 @@ import React, { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
+import { 
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter
+} from "@/components/ui/dialog";
 
 interface SuperadminGestureDetectorProps {}
 
@@ -25,21 +32,18 @@ export const SuperadminGestureDetector: React.FC<SuperadminGestureDetectorProps>
   const [loading, setLoading] = useState(false);
   const [userSearchResults, setUserSearchResults] = useState<UserSearchResult[]>([]);
   
-  // Create a safe version of navigate that won't crash if not in Router context
-  // We'll initialize it to a no-op function
-  let navigate = () => {};
+  // Create a safe navigation function
+  let navigate: ((to: string) => void) | undefined;
   try {
-    // Only use the hook if we're in a component that's within Router context
-    const nav = useNavigate();
-    navigate = nav;
+    const navFunction = useNavigate();
+    navigate = (to: string) => navFunction(to);
   } catch (error) {
-    // If we're not in a Router context, the navigate function will remain a no-op
     console.log("Navigation not available in this context");
   }
 
   useEffect(() => {
     const handleFastClicks = (e: MouseEvent) => {
-      // Make it easier to trigger: only require Alt key (no Ctrl)
+      // Check for Alt key
       if (e.altKey) {
         const currentTime = Date.now();
         if (currentTime - lastClickTime < 500) {
@@ -71,7 +75,7 @@ export const SuperadminGestureDetector: React.FC<SuperadminGestureDetectorProps>
   }, [lastClickTime]);
 
   useEffect(() => {
-    // Reduce the number of clicks required to 3
+    // Require only 3 clicks to trigger
     if (clickCount >= 3) {
       setShowDebugDialog(true);
       setClickCount(0);
@@ -166,11 +170,11 @@ export const SuperadminGestureDetector: React.FC<SuperadminGestureDetectorProps>
       toast.success("Superadmin role assigned successfully!");
       setShowDebugDialog(false);
       
-      try {
-        typeof navigate === "function" && navigate("/admin");
-      } catch (error) {
-        console.error("Navigation error:", error);
-        // Fallback to window location change if navigation fails
+      // Navigate safely if function exists
+      if (navigate) {
+        navigate("/admin");
+      } else {
+        // Fallback to window location change if navigate doesn't exist
         window.location.href = "/admin";
       }
     } catch (error: any) {
@@ -181,15 +185,14 @@ export const SuperadminGestureDetector: React.FC<SuperadminGestureDetectorProps>
     }
   };
 
-  if (!showDebugDialog) {
-    return null;
-  }
-
   return (
-    <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-      <div className="bg-nexara-bg rounded-lg p-6 max-w-md w-full border border-nexara-accent neon-border">
-        <h2 className="text-xl font-bold mb-4 text-nexara-accent neon-text">Superadmin Access</h2>
-        <form onSubmit={handleDebugSubmit} className="mb-4">
+    <Dialog open={showDebugDialog} onOpenChange={setShowDebugDialog}>
+      <DialogContent className="bg-nexara-bg border border-nexara-accent text-white max-w-md w-full">
+        <DialogHeader>
+          <DialogTitle className="text-xl text-nexara-accent">Superadmin Access</DialogTitle>
+        </DialogHeader>
+        
+        <form onSubmit={handleDebugSubmit} className="mb-4 space-y-4">
           <input
             type="text"
             placeholder="Search user by email"
@@ -199,6 +202,7 @@ export const SuperadminGestureDetector: React.FC<SuperadminGestureDetectorProps>
             disabled={loading}
             autoFocus
           />
+          
           <div className="flex justify-between">
             <button
               type="button"
@@ -240,8 +244,8 @@ export const SuperadminGestureDetector: React.FC<SuperadminGestureDetectorProps>
             </div>
           </div>
         )}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 };
 
