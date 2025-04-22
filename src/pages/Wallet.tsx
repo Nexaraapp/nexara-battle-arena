@@ -5,7 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Rupee, Loader, CircleArrowUp, CircleArrowDown } from "lucide-react";
+import { IndianRupee, Loader, CircleArrowUp, CircleArrowDown } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDistanceToNow } from "date-fns";
@@ -48,8 +48,9 @@ const Wallet = () => {
   }, []);
   
   const getCurrentUserId = () => {
-    const { data } = supabase.auth.getSession();
-    return data?.session?.user?.id;
+    return supabase.auth.getSession().then(({ data }) => {
+      return data?.session?.user?.id;
+    });
   };
 
   const fetchWalletData = async () => {
@@ -341,7 +342,7 @@ const Wallet = () => {
                   <div className="text-center mb-4">
                     <p className="text-sm text-gray-400 mb-1">Send payment via UPI to this QR code</p>
                     <div className="flex justify-center items-center gap-1">
-                      <Rupee className="h-4 w-4" />
+                      <IndianRupee className="h-4 w-4" />
                       <p className="text-nexara-accent font-medium">nexarabf@ybl</p>
                     </div>
                   </div>

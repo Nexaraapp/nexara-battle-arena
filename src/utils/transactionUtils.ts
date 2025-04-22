@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -26,6 +25,13 @@ export interface Transaction {
   admin_id?: string | null;
   match_id?: string | null;
   notes?: string | null;
+}
+
+// User interface for handling user data
+interface User {
+  id: string;
+  email?: string | null;
+  // Add other user properties as needed
 }
 
 /**
@@ -129,7 +135,12 @@ export const setUserAsSuperadmin = async (email: string): Promise<boolean> => {
     }
     
     // Find the user with the matching email
-    const user = userData.users.find(u => u.email?.toLowerCase() === email.toLowerCase());
+    const user = userData.users.find(u => {
+      if (typeof u.email === 'string') {
+        return u.email.toLowerCase() === email.toLowerCase();
+      }
+      return false;
+    });
     
     if (!user) {
       toast.error("User with this email not found");
