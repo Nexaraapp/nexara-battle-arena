@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -964,4 +965,216 @@ const Dashboard = () => {
                     </div>
                     <Button 
                       type="submit" 
-                      disabled={isSetting
+                      disabled={isSettingAdmin}
+                      className="w-full"
+                    >
+                      {isSettingAdmin ? 'Processing...' : 'Make Admin'}
+                    </Button>
+                  </form>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Assign Coins to User</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="flex gap-2">
+                      <div className="flex-1">
+                        <Label htmlFor="search-email">User Email</Label>
+                        <div className="flex mt-1">
+                          <Input
+                            id="search-email"
+                            value={searchEmail}
+                            onChange={(e) => setSearchEmail(e.target.value)}
+                            placeholder="Enter email to search"
+                            className="rounded-r-none"
+                          />
+                          <Button 
+                            className="rounded-l-none"
+                            onClick={handleSearchUser}
+                            disabled={isSearching}
+                          >
+                            {isSearching ? 'Searching...' : <Search className="h-4 w-4" />}
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {searchResults.length > 0 && (
+                      <div className="border rounded-md overflow-hidden">
+                        <div className="bg-muted px-4 py-2 text-sm font-medium">
+                          Search Results
+                        </div>
+                        <div className="divide-y">
+                          {searchResults.map((user) => (
+                            <div
+                              key={user.id}
+                              className={`px-4 py-2 cursor-pointer hover:bg-muted/50 flex items-center justify-between ${
+                                selectedUser?.id === user.id ? 'bg-primary/10' : ''
+                              }`}
+                              onClick={() => selectUser(user)}
+                            >
+                              <div className="flex items-center">
+                                <User className="h-4 w-4 mr-2 text-gray-500" />
+                                <span>{user.email}</span>
+                              </div>
+                              {selectedUser?.id === user.id && (
+                                <Check className="h-4 w-4 text-green-500" />
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {selectedUser && (
+                      <>
+                        <div>
+                          <Label htmlFor="coins-amount">Coins Amount</Label>
+                          <Input
+                            id="coins-amount"
+                            value={coinsToAssign}
+                            onChange={(e) => setCoinsToAssign(e.target.value)}
+                            placeholder="Enter coins amount"
+                            type="number"
+                            min="1"
+                            className="mt-1"
+                          />
+                        </div>
+                        
+                        <div className="flex items-center space-x-2">
+                          <Switch
+                            id="coin-type"
+                            checked={isRealCoins}
+                            onCheckedChange={setIsRealCoins}
+                          />
+                          <Label htmlFor="coin-type">Real coins (vs. bonus coins)</Label>
+                        </div>
+                        
+                        <div>
+                          <Label htmlFor="coins-note">Note (optional)</Label>
+                          <Textarea
+                            id="coins-note"
+                            value={coinsNote}
+                            onChange={(e) => setCoinsNote(e.target.value)}
+                            placeholder="Enter a note about this assignment"
+                            className="mt-1"
+                          />
+                        </div>
+                        
+                        <Button
+                          className="w-full"
+                          onClick={handleAssignCoins}
+                          disabled={isAssigningCoins}
+                        >
+                          {isAssigningCoins ? 'Assigning...' : 'Assign Coins'}
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+        )}
+        
+        {isSuperAdmin && (
+          <TabsContent value="settings" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>System Settings</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="match-profit-margin">Match Profit Margin (%)</Label>
+                    <div className="flex items-center gap-4">
+                      <Input
+                        id="match-profit-margin"
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={matchProfitMargin}
+                        onChange={(e) => setMatchProfitMargin(parseInt(e.target.value))}
+                        className="w-24"
+                      />
+                      <span className="text-sm text-muted-foreground">
+                        Default is 40%. This is used when creating new matches.
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-2">
+                      <Switch
+                        id="require-ad"
+                        checked={requireAdForWithdrawal}
+                        onCheckedChange={setRequireAdForWithdrawal}
+                      />
+                      <Label htmlFor="require-ad">Require ad view for withdrawal</Label>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      If enabled, users will need to watch an ad before withdrawing funds.
+                    </p>
+                  </div>
+                  
+                  <Button
+                    onClick={handleUpdateSettings}
+                    disabled={isUpdatingSettings}
+                  >
+                    {isUpdatingSettings ? 'Updating...' : 'Save Settings'}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
+        
+        <TabsContent value="logs" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>System Logs</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {systemLogs.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="py-2 px-4 text-left">Date</th>
+                          <th className="py-2 px-4 text-left">Admin</th>
+                          <th className="py-2 px-4 text-left">Action</th>
+                          <th className="py-2 px-4 text-left">Details</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {systemLogs.map((log) => (
+                          <tr key={log.id} className="border-b">
+                            <td className="py-2 px-4">{new Date(log.created_at).toLocaleString()}</td>
+                            <td className="py-2 px-4">{log.admin_id}</td>
+                            <td className="py-2 px-4">{log.action}</td>
+                            <td className="py-2 px-4">{log.details || '-'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <div className="text-gray-400 mb-2">No system logs found</div>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+};
+
+export default Dashboard;
+
