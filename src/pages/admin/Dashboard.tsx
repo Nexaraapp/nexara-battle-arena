@@ -17,12 +17,27 @@ import {
 import { 
   Search, User, UsersRound, ArrowRight, Coins,
   Wallet, Clock, Check, X, AlertCircle, CircleDollarSign,
-  ShieldCheck, Trophy, Settings, Eye
+  ShieldCheck, Trophy, Settings, Eye, Trash2, Clock4
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { updateMatchRoomDetails } from "@/utils/matchUtils";
+import { 
+  updateMatchRoomDetails, 
+  createMatch, 
+  MatchType, 
+  RoomType, 
+  RoomMode, 
+  cancelMatch, 
+  completeMatch
+} from "@/utils/matchUtils";
 import { setUserAsAdmin, getSystemSettings, updateSystemSettings } from "@/utils/transactionUtils";
+import { Badge } from "@/components/ui/badge";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Separator } from "@/components/ui/separator";
 
 // Define type for Match
 interface Match {
@@ -36,6 +51,13 @@ interface Match {
   room_id?: string;
   room_password?: string;
   created_at: string;
+  start_time?: string;
+  mode?: string;
+  room_type?: string;
+  coins_per_kill?: number;
+  first_prize?: number;
+  second_prize?: number;
+  third_prize?: number;
 }
 
 // Define SystemLog type
@@ -78,6 +100,34 @@ interface UserSearchResult {
   email: string;
 }
 
+// Schema for match creation form
+const matchCreationSchema = z.object({
+  type: z.string({
+    required_error: "Please select a match type",
+  }),
+  mode: z.string({
+    required_error: "Please select a room mode",
+  }),
+  roomType: z.string({
+    required_error: "Please select a room type",
+  }),
+  slots: z.number({
+    required_error: "Please enter the number of slots",
+  }).min(2, "Minimum 2 slots required").max(100, "Maximum 100 slots"),
+  entryFee: z.number({
+    required_error: "Please enter the entry fee",
+  }).min(10, "Minimum 10 coins required"),
+  firstPrize: z.number({
+    required_error: "Please enter the first prize",
+  }).min(0, "Cannot be negative"),
+  secondPrize: z.number().min(0, "Cannot be negative").optional(),
+  thirdPrize: z.number().min(0, "Cannot be negative").optional(),
+  coinsPerKill: z.number().min(0, "Cannot be negative").optional(),
+  startTime: z.string().optional(),
+  roomId: z.string().optional(),
+  roomPassword: z.string().optional(),
+});
+
 const Dashboard = () => {
   // System logs
   const [systemLogs, setSystemLogs] = useState<SystemLog[]>([]);
@@ -107,6 +157,11 @@ const Dashboard = () => {
   const [roomId, setRoomId] = useState("");
   const [roomPassword, setRoomPassword] = useState("");
   const [isUpdatingRoom, setIsUpdatingRoom] = useState(false);
+  const [isMatchActionInProgress, setIsMatchActionInProgress] = useState(false);
+
+  // Match creation
+  const [isCreatingMatch, setIsCreatingMatch] = useState(false);
+  const [createMatchDialogOpen, setCreateMatchDialogOpen] = useState(false);
 
   // System settings
   const [requireAdForWithdrawal, setRequireAdForWithdrawal] = useState(false);
@@ -120,6 +175,22 @@ const Dashboard = () => {
   const [currentAdminId, setCurrentAdminId] = useState<string | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
+  // Match creation form
+  const matchCreationForm = useForm<z.infer<typeof matchCreationSchema>>({
+    resolver: zodResolver(matchCreationSchema),
+    defaultValues: {
+      type: MatchType.BattleRoyale,
+      mode: RoomMode.Solo,
+      roomType: RoomType.Normal,
+      slots: 24,
+      entryFee: 50,
+      firstPrize: 500,
+      secondPrize: 300,
+      thirdPrize: 200,
+      coinsPerKill: 10,
+    },
+  });
+  
   const fetchSystemLogs = async () => {
     try {
       const { data, error } = await supabase
@@ -643,6 +714,151 @@ const Dashboard = () => {
     }
   };
 
+  const onCreateMatchSubmit = async (data: z.infer<typeof matchCreationSchema>) => {
+    if (!currentAdminId) {
+      toast.error("Admin session not found");
+      return;
+    }
+
+    setIsCreatingMatch(true);
+
+    try {
+      // Calculate the total prize pool (first + second + third prizes)
+      let prizePool = data.firstPrize;
+      if (data.secondPrize) prizePool += data.secondPrize;
+      if (data.thirdPrize) prizePool += data.thirdPrize;
+
+      // Battle Royale needs coins per kill
+      if (data.type === MatchType.BattleRoyale && !data.coinsPerKill) {
+        toast.error("Battle Royale matches require coins per kill");
+        return;
+      }
+
+      // Create the match
+      const newMatchData = {
+        type: data.type,
+        entry_fee: data.entryFee,
+        prize: prizePool,
+        slots: data.slots,
+        start_time: data.startTime || null,
+        room_id: data.roomId || null,
+        room_password: data.roomPassword || null,
+        mode: data.mode,
+        room_type: data.roomType,
+        coins_per_kill: data.coinsPerKill || 0,
+        first_prize: data.firstPrize,
+        second_prize: data.secondPrize || 0,
+        third_prize: data.thirdPrize || 0
+      };
+
+      const newMatch = await createMatch(newMatchData, currentAdminId);
+      
+      if (newMatch) {
+        toast.success(`Successfully created ${data.type} match`);
+        fetchMatches();
+        setCreateMatchDialogOpen(false);
+        matchCreationForm.reset();
+      } else {
+        toast.error("Failed to create match");
+      }
+    } catch (error) {
+      console.error("Error creating match:", error);
+      toast.error("An unexpected error occurred");
+    } finally {
+      setIsCreatingMatch(false);
+    }
+  };
+
+  const handleCancelMatch = async (matchId: string) => {
+    if (!currentAdminId) {
+      toast.error("Admin session not found");
+      return;
+    }
+
+    if (window.confirm("Are you sure you want to cancel this match? All participants will be refunded.")) {
+      setIsMatchActionInProgress(true);
+
+      try {
+        const success = await cancelMatch(matchId, currentAdminId);
+        if (success) {
+          toast.success("Match cancelled successfully");
+          fetchMatches();
+        } else {
+          toast.error("Failed to cancel match");
+        }
+      } catch (error) {
+        console.error("Error cancelling match:", error);
+        toast.error("An unexpected error occurred");
+      } finally {
+        setIsMatchActionInProgress(false);
+      }
+    }
+  };
+
+  const handleCompleteMatch = async (matchId: string) => {
+    if (!currentAdminId) {
+      toast.error("Admin session not found");
+      return;
+    }
+
+    if (window.confirm("Are you sure you want to mark this match as completed?")) {
+      setIsMatchActionInProgress(true);
+
+      try {
+        const success = await completeMatch(matchId, currentAdminId);
+        if (success) {
+          toast.success("Match marked as completed");
+          fetchMatches();
+        } else {
+          toast.error("Failed to complete match");
+        }
+      } catch (error) {
+        console.error("Error completing match:", error);
+        toast.error("An unexpected error occurred");
+      } finally {
+        setIsMatchActionInProgress(false);
+      }
+    }
+  };
+
+  // Helper function to determine proper slot range based on match type
+  const getSlotRangeForType = (type: string) => {
+    switch (type) {
+      case MatchType.BattleRoyale:
+        return { min: 24, max: 48, default: 24 };
+      case MatchType.ClashSolo:
+        return { min: 2, max: 2, default: 2 };
+      case MatchType.ClashDuo:
+        return { min: 4, max: 4, default: 4 };
+      case MatchType.ClashSquad:
+        return { min: 8, max: 8, default: 8 };
+      default:
+        return { min: 2, max: 48, default: 24 };
+    }
+  };
+
+  // Update form values when match type changes
+  const handleMatchTypeChange = (type: string) => {
+    const slotRange = getSlotRangeForType(type);
+    matchCreationForm.setValue("slots", slotRange.default);
+    
+    // Set appropriate mode based on match type
+    if (type === MatchType.ClashSolo) {
+      matchCreationForm.setValue("mode", RoomMode.Solo);
+    } else if (type === MatchType.ClashDuo) {
+      matchCreationForm.setValue("mode", RoomMode.Duo);
+    } else if (type === MatchType.ClashSquad) {
+      matchCreationForm.setValue("mode", RoomMode.Squad);
+    }
+    
+    // Show/hide coins per kill based on match type
+    if (type === MatchType.BattleRoyale) {
+      matchCreationForm.setValue("coinsPerKill", 10);
+    } else {
+      matchCreationForm.setValue("coinsPerKill", 0);
+    }
+  };
+
   return (
     <div className="container mx-auto p-4">
       <h1 className="text-2xl font-bold mb-4">Admin Dashboard</h1>
@@ -796,6 +1012,293 @@ const Dashboard = () => {
         </TabsContent>
         
         <TabsContent value="matches" className="space-y-4">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-bold">Match Management</h2>
+            <Dialog open={createMatchDialogOpen} onOpenChange={setCreateMatchDialogOpen}>
+              <DialogTrigger asChild>
+                <Button>Create New Match</Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[600px]">
+                <DialogHeader>
+                  <DialogTitle>Create Match</DialogTitle>
+                </DialogHeader>
+                <Form {...matchCreationForm}>
+                  <form onSubmit={matchCreationForm.handleSubmit(onCreateMatchSubmit)} className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <FormField
+                        control={matchCreationForm.control}
+                        name="type"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Match Type</FormLabel>
+                            <Select
+                              onValueChange={(value) => {
+                                field.onChange(value);
+                                handleMatchTypeChange(value);
+                              }}
+                              defaultValue={field.value}
+                            >
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select match type" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value={MatchType.BattleRoyale}>Battle Royale</SelectItem>
+                                <SelectItem value={MatchType.ClashSolo}>Clash Solo</SelectItem>
+                                <SelectItem value={MatchType.ClashDuo}>Clash Duo</SelectItem>
+                                <SelectItem value={MatchType.ClashSquad}>Clash Squad</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={matchCreationForm.control}
+                        name="mode"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Room Mode</FormLabel>
+                            <Select
+                              onValueChange={field.onChange}
+                              defaultValue={field.value}
+                              disabled={matchCreationForm.watch("type") === MatchType.ClashSolo ||
+                                      matchCreationForm.watch("type") === MatchType.ClashDuo ||
+                                      matchCreationForm.watch("type") === MatchType.ClashSquad}
+                            >
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select room mode" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value={RoomMode.Solo}>Solo</SelectItem>
+                                <SelectItem value={RoomMode.Duo}>Duo</SelectItem>
+                                <SelectItem value={RoomMode.Squad}>Squad</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <FormField
+                        control={matchCreationForm.control}
+                        name="roomType"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Room Type</FormLabel>
+                            <Select
+                              onValueChange={field.onChange}
+                              defaultValue={field.value}
+                            >
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select room type" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value={RoomType.Normal}>Normal</SelectItem>
+                                <SelectItem value={RoomType.Sniper}>Sniper Only</SelectItem>
+                                <SelectItem value={RoomType.Pistol}>Pistol Only</SelectItem>
+                                <SelectItem value={RoomType.Melee}>Melee Only</SelectItem>
+                                <SelectItem value={RoomType.Custom}>Custom Rules</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={matchCreationForm.control}
+                        name="slots"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Number of Players</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                {...field}
+                                onChange={e => field.onChange(parseInt(e.target.value))}
+                                min={getSlotRangeForType(matchCreationForm.watch("type")).min}
+                                max={getSlotRangeForType(matchCreationForm.watch("type")).max}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <FormField
+                        control={matchCreationForm.control}
+                        name="entryFee"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Entry Fee (Coins)</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                {...field}
+                                onChange={e => field.onChange(parseInt(e.target.value))}
+                                min={10}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      {matchCreationForm.watch("type") === MatchType.BattleRoyale && (
+                        <FormField
+                          control={matchCreationForm.control}
+                          name="coinsPerKill"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Coins per Kill</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  {...field}
+                                  onChange={e => field.onChange(parseInt(e.target.value))}
+                                  min={0}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <FormField
+                        control={matchCreationForm.control}
+                        name="firstPrize"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>1st Prize (Coins)</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                {...field}
+                                onChange={e => field.onChange(parseInt(e.target.value))}
+                                min={0}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={matchCreationForm.control}
+                        name="secondPrize"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>2nd Prize (Coins)</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                {...field}
+                                onChange={e => field.onChange(parseInt(e.target.value) || 0)}
+                                min={0}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={matchCreationForm.control}
+                        name="thirdPrize"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>3rd Prize (Coins)</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                {...field}
+                                onChange={e => field.onChange(parseInt(e.target.value) || 0)}
+                                min={0}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <FormField
+                      control={matchCreationForm.control}
+                      name="startTime"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Match Start Time</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="datetime-local"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <FormField
+                        control={matchCreationForm.control}
+                        name="roomId"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Room ID (Optional)</FormLabel>
+                            <FormControl>
+                              <Input {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={matchCreationForm.control}
+                        name="roomPassword"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Room Password (Optional)</FormLabel>
+                            <FormControl>
+                              <Input {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <div className="bg-yellow-900/20 p-3 rounded-md flex items-center">
+                      <AlertCircle className="h-4 w-4 text-yellow-500 mr-2 flex-shrink-0" />
+                      <p className="text-sm text-yellow-500">
+                        You can set or update room details later. Room details will only be visible to participants 5 minutes before the match starts.
+                      </p>
+                    </div>
+
+                    <Button type="submit" className="w-full" disabled={isCreatingMatch}>
+                      {isCreatingMatch ? 'Creating...' : 'Create Match'}
+                    </Button>
+                  </form>
+                </Form>
+              </DialogContent>
+            </Dialog>
+          </div>
+
           <Card>
             <CardHeader>
               <CardTitle>Match Room Details</CardTitle>
@@ -867,6 +1370,29 @@ const Dashboard = () => {
                         Updating room details will notify all participants who have joined the match.
                       </p>
                     </div>
+
+                    <div className="flex gap-2 mt-4">
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => handleCancelMatch(selectedMatch.id)}
+                        disabled={isMatchActionInProgress || selectedMatch.status === 'cancelled' || selectedMatch.status === 'completed'}
+                        className="flex-1"
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Cancel Match
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => handleCompleteMatch(selectedMatch.id)}
+                        disabled={isMatchActionInProgress || selectedMatch.status === 'cancelled' || selectedMatch.status === 'completed'}
+                        className="flex-1"
+                      >
+                        <Check className="h-4 w-4 mr-2" />
+                        Mark Complete
+                      </Button>
+                    </div>
                   </>
                 )}
               </div>
@@ -883,21 +1409,18 @@ const Dashboard = () => {
                   <thead>
                     <tr className="border-b">
                       <th className="py-2 px-4 text-left">Type</th>
+                      <th className="py-2 px-4 text-left">Mode</th>
                       <th className="py-2 px-4 text-left">Status</th>
                       <th className="py-2 px-4 text-left">Players</th>
                       <th className="py-2 px-4 text-left">Entry Fee</th>
                       <th className="py-2 px-4 text-left">Prize</th>
-                      <th className="py-2 px-4 text-left">Profit %</th>
                       <th className="py-2 px-4 text-left">Room ID</th>
+                      <th className="py-2 px-4 text-left">Start Time</th>
                       <th className="py-2 px-4 text-left">Created</th>
                     </tr>
                   </thead>
                   <tbody>
                     {matches.map((match) => {
-                      // Calculate profit percentage
-                      const totalFees = match.entry_fee * match.slots;
-                      const profitPercent = Math.round(((totalFees - match.prize) / totalFees) * 100);
-                      
                       return (
                         <tr key={match.id} className="border-b hover:bg-nexara-accent/5 cursor-pointer"
                             onClick={() => {
@@ -913,6 +1436,7 @@ const Dashboard = () => {
                             }}
                         >
                           <td className="py-2 px-4">{match.type}</td>
+                          <td className="py-2 px-4">{match.mode || 'N/A'}</td>
                           <td className="py-2 px-4">
                             <span className={`px-2 py-1 rounded text-xs ${
                               match.status === 'upcoming' ? 'bg-blue-900/20 text-blue-400' :
@@ -925,13 +1449,32 @@ const Dashboard = () => {
                           </td>
                           <td className="py-2 px-4">{match.slots_filled}/{match.slots}</td>
                           <td className="py-2 px-4">{match.entry_fee}</td>
-                          <td className="py-2 px-4">{match.prize}</td>
                           <td className="py-2 px-4">
-                            <span className={`${profitPercent < 40 ? 'text-red-500' : 'text-green-500'}`}>
-                              {profitPercent}%
-                            </span>
+                            {match.prize}
+                            {match.first_prize && (
+                              <span className="ml-1 text-xs text-gray-500">
+                                ({match.first_prize}/{match.second_prize || 0}/{match.third_prize || 0})
+                              </span>
+                            )}
                           </td>
-                          <td className="py-2 px-4">{match.room_id || 'Not set'}</td>
+                          <td className="py-2 px-4">
+                            {match.room_id ? (
+                              <Badge variant="outline" className="bg-green-900/10 text-green-500 border-green-500">
+                                Set
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="bg-red-900/10 text-red-500 border-red-500">
+                                Not Set
+                              </Badge>
+                            )}
+                          </td>
+                          <td className="py-2 px-4">
+                            {match.start_time ? (
+                              new Date(match.start_time).toLocaleString()
+                            ) : (
+                              <span className="text-gray-400">Not set</span>
+                            )}
+                          </td>
                           <td className="py-2 px-4">{new Date(match.created_at).toLocaleDateString()}</td>
                         </tr>
                       );
@@ -1177,4 +1720,3 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
-

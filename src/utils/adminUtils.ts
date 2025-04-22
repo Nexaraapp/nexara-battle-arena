@@ -1,7 +1,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 
-interface UserSearchResult {
+export interface UserSearchResult {
   id: string;
   email?: string;
 }
