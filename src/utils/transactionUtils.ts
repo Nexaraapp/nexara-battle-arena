@@ -2,6 +2,16 @@
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
+// Define coin packs for top-ups
+export const COIN_PACKS = [
+  { id: 'pack1', coins: 100, price: 10 },
+  { id: 'pack2', coins: 200, price: 20 },
+  { id: 'pack3', coins: 500, price: 50 },
+  { id: 'pack4', coins: 1000, price: 100 },
+  { id: 'pack5', coins: 2000, price: 200 },
+  { id: 'pack6', coins: 5000, price: 500 }
+];
+
 // Function to get system settings
 export const getSystemSettings = async () => {
   try {
@@ -67,6 +77,35 @@ export const updateSystemSettings = async (
     return true;
   } catch (error) {
     console.error("Error in updateSystemSettings:", error);
+    return false;
+  }
+};
+
+// Function to check if user has enough real coins for withdrawal
+export const hasEnoughRealCoins = async (userId: string, amount: number): Promise<boolean> => {
+  try {
+    // Get all transactions for the user
+    const { data, error } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('is_real_coins', true)
+      .eq('status', 'completed');
+      
+    if (error) {
+      console.error("Error fetching transactions:", error);
+      return false;
+    }
+    
+    // Calculate real coins balance
+    let realCoinsBalance = 0;
+    data?.forEach(transaction => {
+      realCoinsBalance += (transaction.amount || 0);
+    });
+    
+    return realCoinsBalance >= amount;
+  } catch (error) {
+    console.error("Error checking real coins:", error);
     return false;
   }
 };
@@ -142,19 +181,49 @@ export const setUserAsAdmin = async (
   }
 };
 
+// Function to get user withdrawal count
+export const getUserWithdrawalCount = async (userId: string): Promise<number> => {
+  try {
+    const { data, error } = await supabase
+      .from('withdrawals')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('status', 'completed');
+      
+    if (error) {
+      console.error("Error fetching withdrawals:", error);
+      return 0;
+    }
+    
+    return data?.length || 0;
+  } catch (error) {
+    console.error("Error getting withdrawal count:", error);
+    return 0;
+  }
+};
+
 // Function to calculate withdrawal amount based on coin amount
 export const calculateWithdrawalAmount = (coins: number): number => {
   return Math.floor(coins / 10);
 };
 
+// Function to calculate withdrawal payout based on user history
+export const calculateWithdrawalPayout = (coins: number, isFirstFive: boolean): number => {
+  // Get base amount
+  const baseAmount = calculateWithdrawalAmount(coins);
+  
+  // For first 5 withdrawals, add 20% bonus
+  return isFirstFive ? Math.floor(baseAmount * 1.2) : baseAmount;
+};
+
 // Define withdrawal tiers with minimum coins required and corresponding rupee amounts
 export const WITHDRAWAL_TIERS = [
-  { coins: 100, amount: 10 },
-  { coins: 200, amount: 20 },
-  { coins: 500, amount: 50 },
-  { coins: 1000, amount: 100 },
-  { coins: 2000, amount: 200 },
-  { coins: 5000, amount: 500 }
+  { coins: 100, amount: 10, firstFivePayoutInr: 12, regularPayoutInr: 10 },
+  { coins: 200, amount: 20, firstFivePayoutInr: 25, regularPayoutInr: 20 },
+  { coins: 500, amount: 50, firstFivePayoutInr: 60, regularPayoutInr: 50 },
+  { coins: 1000, amount: 100, firstFivePayoutInr: 120, regularPayoutInr: 100 },
+  { coins: 2000, amount: 200, firstFivePayoutInr: 240, regularPayoutInr: 200 },
+  { coins: 5000, amount: 500, firstFivePayoutInr: 600, regularPayoutInr: 500 }
 ];
 
 // Get the next available withdrawal tier based on user's balance

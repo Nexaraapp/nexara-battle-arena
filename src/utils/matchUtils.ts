@@ -2,64 +2,143 @@
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-// Define Match interface
+// Interface defining the match object structure
 export interface Match {
   id: string;
   type: string;
+  slots: number;
+  status: string;
   entry_fee: number;
   prize: number;
-  slots: number;
-  slots_filled: number;
-  status: 'upcoming' | 'active' | 'completed' | 'cancelled';
   created_at: string;
   created_by: string;
-  room_id?: string;
-  room_password?: string;
-  start_time?: string;
-  mode?: string; // Solo, Duo, Squad
-  room_type?: string; // Normal, Sniper, Pistol-only, etc.
-  coins_per_kill?: number; // For Battle Royale
-  first_prize?: number; // For winners
+  start_time: string;
+  slots_filled: number;
+  room_id: string | null;
+  room_password: string | null;
+  first_prize?: number;
   second_prize?: number;
   third_prize?: number;
+  coins_per_kill?: number;
+  mode?: string;
+  room_type?: string;
 }
 
-// Define MatchType enum
-export enum MatchType {
-  BattleRoyale = 'Battle Royale',
-  ClashSolo = 'Clash Solo',
-  ClashDuo = 'Clash Duo',
-  ClashSquad = 'Clash Squad'
+// Interface for match creation payload
+export interface CreateMatchPayload {
+  type: string;
+  slots: number;
+  entry_fee: number;
+  first_prize: number;
+  second_prize: number;
+  third_prize: number;
+  start_time: string;
+  coins_per_kill?: number;
+  mode: string;
+  room_type: string;
 }
 
-// Define MatchStatus enum
-export enum MatchStatus {
-  Upcoming = 'upcoming',
-  Active = 'active',
-  Completed = 'completed',
-  Cancelled = 'cancelled'
-}
+// Match type options
+export const MATCH_TYPES = [
+  { value: "battle_royale", label: "Battle Royale" },
+  { value: "clash_squad", label: "Clash Squad" }
+];
 
-// Define RoomType enum
-export enum RoomType {
-  Normal = 'Normal',
-  Sniper = 'Sniper Only',
-  Pistol = 'Pistol Only',
-  Melee = 'Melee Only',
-  Custom = 'Custom Rules'
-}
+// Match mode options
+export const MATCH_MODES = {
+  battle_royale: [
+    { value: "solo", label: "Solo" },
+    { value: "duo", label: "Duo" },
+    { value: "squad", label: "Squad (4 Players)" }
+  ],
+  clash_squad: [
+    { value: "1v1", label: "1v1" },
+    { value: "2v2", label: "2v2" },
+    { value: "4v4", label: "4v4" }
+  ]
+};
 
-// Define RoomMode enum
-export enum RoomMode {
-  Solo = 'Solo',
-  Duo = 'Duo',
-  Squad = 'Squad'
-}
+// Room type options
+export const ROOM_TYPES = [
+  { value: "normal", label: "Normal" },
+  { value: "sniper_only", label: "Sniper Only" },
+  { value: "pistol_only", label: "Pistol Only" },
+  { value: "melee_only", label: "Melee Only" },
+  { value: "custom", label: "Custom Rules" }
+];
 
-/**
- * Get all matches
- */
-export const getAllMatches = async (): Promise<Match[]> => {
+// Get slot count based on match type and mode
+export const getSlotCountForMode = (type: string, mode: string): number => {
+  if (type === "battle_royale") {
+    switch (mode) {
+      case "solo": return 48;
+      case "duo": return 48; // 24 teams
+      case "squad": return 48; // 12 teams
+      default: return 48;
+    }
+  } else if (type === "clash_squad") {
+    switch (mode) {
+      case "1v1": return 2;
+      case "2v2": return 4;
+      case "4v4": return 8;
+      default: return 8;
+    }
+  }
+  return 48;
+};
+
+// Function to create a new match
+export const createMatch = async (data: CreateMatchPayload, adminId: string): Promise<string | null> => {
+  try {
+    // Calculate total prize based on individual prizes
+    const totalPrize = data.first_prize + data.second_prize + data.third_prize;
+    
+    const { data: matchData, error } = await supabase
+      .from('matches')
+      .insert({
+        type: data.type,
+        slots: data.slots,
+        entry_fee: data.entry_fee,
+        prize: totalPrize,
+        start_time: data.start_time,
+        status: 'upcoming',
+        created_by: adminId,
+        first_prize: data.first_prize,
+        second_prize: data.second_prize,
+        third_prize: data.third_prize,
+        coins_per_kill: data.coins_per_kill,
+        mode: data.mode,
+        room_type: data.room_type
+      })
+      .select('id')
+      .single();
+      
+    if (error) {
+      console.error("Error creating match:", error);
+      toast.error("Failed to create match");
+      return null;
+    }
+    
+    // Log the action
+    await supabase
+      .from('system_logs')
+      .insert({
+        admin_id: adminId,
+        action: 'Match Created',
+        details: `Created a new ${data.type} match with entry fee ${data.entry_fee} coins`
+      });
+      
+    toast.success("Match created successfully");
+    return matchData.id;
+  } catch (error) {
+    console.error("Error in createMatch:", error);
+    toast.error("An unexpected error occurred");
+    return null;
+  }
+};
+
+// Function to get all matches
+export const getMatches = async (): Promise<Match[]> => {
   try {
     const { data, error } = await supabase
       .from('matches')
@@ -71,78 +150,122 @@ export const getAllMatches = async (): Promise<Match[]> => {
       throw error;
     }
     
-    // Ensure the returned data conforms to Match interface
-    return data.map(match => ({
-      ...match,
-      status: match.status as Match['status']
-    })) || [];
+    return data || [];
   } catch (error) {
-    console.error("Error in getAllMatches:", error);
+    console.error("Error in getMatches:", error);
     return [];
   }
 };
 
-/**
- * Create a new match
- */
-export const createMatch = async (matchData: Partial<Match>, adminId: string): Promise<Match | null> => {
+// Function to get upcoming matches
+export const getUpcomingMatches = async (): Promise<Match[]> => {
   try {
     const { data, error } = await supabase
       .from('matches')
-      .insert({
-        type: matchData.type,
-        entry_fee: matchData.entry_fee,
-        prize: matchData.prize,
-        slots: matchData.slots,
-        slots_filled: 0,
-        status: 'upcoming',
-        created_by: adminId,
-        start_time: matchData.start_time,
-        room_id: matchData.room_id,
-        room_password: matchData.room_password,
-        mode: matchData.mode,
-        room_type: matchData.room_type,
-        coins_per_kill: matchData.coins_per_kill,
-        first_prize: matchData.first_prize,
-        second_prize: matchData.second_prize,
-        third_prize: matchData.third_prize
-      })
-      .select()
-      .single();
-
+      .select('*')
+      .eq('status', 'upcoming')
+      .order('start_time', { ascending: true });
+      
     if (error) {
-      console.error("Error creating match:", error);
+      console.error("Error fetching upcoming matches:", error);
       throw error;
     }
+    
+    return data || [];
+  } catch (error) {
+    console.error("Error in getUpcomingMatches:", error);
+    return [];
+  }
+};
 
+// Function to get ongoing matches
+export const getOngoingMatches = async (): Promise<Match[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('matches')
+      .select('*')
+      .eq('status', 'ongoing')
+      .order('start_time', { ascending: true });
+      
+    if (error) {
+      console.error("Error fetching ongoing matches:", error);
+      throw error;
+    }
+    
+    return data || [];
+  } catch (error) {
+    console.error("Error in getOngoingMatches:", error);
+    return [];
+  }
+};
+
+// Function to get completed matches
+export const getCompletedMatches = async (): Promise<Match[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('matches')
+      .select('*')
+      .eq('status', 'completed')
+      .order('start_time', { ascending: false })
+      .limit(10);
+      
+    if (error) {
+      console.error("Error fetching completed matches:", error);
+      throw error;
+    }
+    
+    return data || [];
+  } catch (error) {
+    console.error("Error in getCompletedMatches:", error);
+    return [];
+  }
+};
+
+// Function to update match status
+export const updateMatchStatus = async (
+  matchId: string, 
+  status: 'upcoming' | 'ongoing' | 'completed',
+  adminId: string
+): Promise<boolean> => {
+  try {
+    const { error } = await supabase
+      .from('matches')
+      .update({ status })
+      .eq('id', matchId);
+      
+    if (error) {
+      console.error("Error updating match status:", error);
+      toast.error("Failed to update match status");
+      return false;
+    }
+    
     // Log the action
     await supabase
       .from('system_logs')
       .insert({
         admin_id: adminId,
-        action: 'Match Created',
-        details: `Created ${matchData.type} match with ${matchData.slots} slots`
+        action: 'Match Status Updated',
+        details: `Updated match ${matchId} status to ${status}`
       });
-
-    return data as Match;
+      
+    toast.success(`Match ${status === 'ongoing' ? 'started' : status === 'completed' ? 'completed' : 'updated'}`);
+    return true;
   } catch (error) {
-    console.error("Error in createMatch:", error);
-    return null;
+    console.error("Error in updateMatchStatus:", error);
+    toast.error("An unexpected error occurred");
+    return false;
   }
 };
 
-/**
- * Update match room details
- */
-export const updateMatchRoomDetails = async (
-  matchId: string,
-  roomId: string,
+// Function to update room details
+export const updateRoomDetails = async (
+  matchId: string, 
+  roomId: string, 
   roomPassword: string,
   adminId: string
 ): Promise<boolean> => {
   try {
-    // Update match room details
-    const { error: updateError } = await supabase
+    const { error } = await supabase
       .from('matches')
       .update({
         room_id: roomId,
@@ -150,36 +273,10 @@ export const updateMatchRoomDetails = async (
       })
       .eq('id', matchId);
       
-    if (updateError) {
-      console.error("Error updating match room details:", updateError);
-      throw updateError;
-    }
-    
-    // Get match participants to send notifications
-    const { data: participants, error: participantsError } = await supabase
-      .from('match_entries')
-      .select('user_id')
-      .eq('match_id', matchId);
-      
-    if (participantsError) {
-      console.error("Error fetching match participants:", participantsError);
-      // Continue even if we can't fetch participants
-    } else if (participants && participants.length > 0) {
-      // Send notifications to all participants
-      const notifications = participants.map(participant => ({
-        user_id: participant.user_id,
-        message: `Room details for your match have been updated. Room ID: ${roomId}, Password: ${roomPassword}`,
-        read: false
-      }));
-      
-      const { error: notificationError } = await supabase
-        .from('notifications')
-        .insert(notifications);
-        
-      if (notificationError) {
-        console.error("Error sending notifications:", notificationError);
-        // Continue even if notifications fail
-      }
+    if (error) {
+      console.error("Error updating room details:", error);
+      toast.error("Failed to update room details");
+      return false;
     }
     
     // Log the action
@@ -187,127 +284,92 @@ export const updateMatchRoomDetails = async (
       .from('system_logs')
       .insert({
         admin_id: adminId,
-        action: 'Match Room Updated',
-        details: `Updated room details for match ${matchId}: Room ID ${roomId}`
+        action: 'Room Details Updated',
+        details: `Updated room details for match ${matchId}`
       });
       
+    toast.success("Room details updated successfully");
     return true;
   } catch (error) {
-    console.error("Error in updateMatchRoomDetails:", error);
+    console.error("Error in updateRoomDetails:", error);
+    toast.error("An unexpected error occurred");
     return false;
   }
 };
 
-/**
- * Get a specific match by ID
- */
-export const getMatch = async (matchId: string): Promise<Match | null> => {
+// Function to join a match
+export const joinMatch = async (
+  matchId: string, 
+  userId: string
+): Promise<boolean> => {
   try {
-    const { data, error } = await supabase
+    // Check if match exists and has space
+    const { data: matchData, error: matchError } = await supabase
       .from('matches')
       .select('*')
       .eq('id', matchId)
       .single();
       
-    if (error) {
-      console.error("Error fetching match details:", error);
-      return null;
-    }
-    
-    // Ensure the returned data conforms to Match interface
-    return {
-      ...data,
-      status: data.status as Match['status']
-    };
-  } catch (error) {
-    console.error("Error in getMatch:", error);
-    return null;
-  }
-};
-
-/**
- * Get upcoming matches for the matches page
- */
-export const getUpcomingMatches = async (): Promise<Match[]> => {
-  try {
-    const { data, error } = await supabase
-      .from('matches')
-      .select('*')
-      .in('status', ['upcoming', 'active'])
-      .order('created_at', { ascending: false });
-      
-    if (error) {
-      console.error("Error fetching upcoming matches:", error);
-      throw error;
-    }
-    
-    // Ensure the returned data conforms to Match interface
-    return data.map(match => ({
-      ...match,
-      status: match.status as Match['status']
-    })) || [];
-  } catch (error) {
-    console.error("Error in getUpcomingMatches:", error);
-    return [];
-  }
-};
-
-/**
- * Join a match
- */
-export const joinMatch = async (matchId: string, userId: string): Promise<boolean> => {
-  try {
-    // Get match details
-    const { data: match, error: matchError } = await supabase
-      .from('matches')
-      .select('*')
-      .eq('id', matchId)
-      .single();
-      
-    if (matchError || !match) {
+    if (matchError || !matchData) {
       console.error("Error fetching match:", matchError);
       toast.error("Match not found");
       return false;
     }
     
-    // Check if match is joinable
-    if (match.slots_filled >= match.slots) {
-      toast.error("Match is already full");
+    if (matchData.slots_filled >= matchData.slots) {
+      toast.error("Match is full");
       return false;
     }
     
-    if (match.status !== 'upcoming') {
-      toast.error("Match is not open for joining");
+    if (matchData.status !== 'upcoming') {
+      toast.error("Match is no longer accepting players");
       return false;
     }
     
-    // Check if user already joined
-    const { data: existingEntry, error: existingError } = await supabase
+    // Check if user has already joined
+    const { data: existingEntry } = await supabase
       .from('match_entries')
       .select('*')
       .eq('match_id', matchId)
-      .eq('user_id', userId);
+      .eq('user_id', userId)
+      .maybeSingle();
       
-    if (existingError) {
-      console.error("Error checking existing entries:", existingError);
-      toast.error("Error joining match");
-      return false;
-    }
-    
-    if (existingEntry && existingEntry.length > 0) {
+    if (existingEntry) {
       toast.error("You have already joined this match");
       return false;
     }
     
-    // Start a transaction to join match and deduct entry fee
-    // First, create a match entry
+    // Start transaction to join match
+    const { data: userData, error: userError } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('status', 'completed');
+      
+    if (userError) {
+      console.error("Error fetching user transactions:", userError);
+      toast.error("Failed to check balance");
+      return false;
+    }
+    
+    // Calculate user balance
+    let balance = 0;
+    userData?.forEach(transaction => {
+      balance += (transaction.amount || 0);
+    });
+    
+    if (balance < matchData.entry_fee) {
+      toast.error("Insufficient funds to join this match");
+      return false;
+    }
+    
+    // Create match entry
     const { error: entryError } = await supabase
       .from('match_entries')
       .insert({
         match_id: matchId,
         user_id: userId,
-        slot_number: match.slots_filled + 1,
-        paid: false
+        slot_number: matchData.slots_filled + 1
       });
       
     if (entryError) {
@@ -316,50 +378,59 @@ export const joinMatch = async (matchId: string, userId: string): Promise<boolea
       return false;
     }
     
-    // Create a transaction for the entry fee
-    const { error: transactionError } = await supabase
-      .from('transactions')
-      .insert({
-        user_id: userId,
-        amount: -match.entry_fee,
-        type: 'match_entry',
-        match_id: matchId,
-        status: 'completed',
-        notes: `Entry fee for ${match.type} match`
-      });
+    // Update match slots filled
+    const { error: updateError } = await supabase
+      .from('matches')
+      .update({
+        slots_filled: matchData.slots_filled + 1
+      })
+      .eq('id', matchId);
       
-    if (transactionError) {
-      console.error("Error creating transaction:", transactionError);
-      // Rollback match entry if transaction fails
+    if (updateError) {
+      console.error("Error updating match:", updateError);
+      // Rollback entry if update fails
       await supabase
         .from('match_entries')
         .delete()
         .eq('match_id', matchId)
         .eq('user_id', userId);
         
-      toast.error("Failed to process entry fee");
+      toast.error("Failed to join match");
       return false;
     }
     
-    // Update match slots_filled
-    const { error: updateError } = await supabase
-      .from('matches')
-      .update({ slots_filled: match.slots_filled + 1 })
-      .eq('id', matchId);
+    // Create transaction for entry fee
+    const { error: transactionError } = await supabase
+      .from('transactions')
+      .insert({
+        user_id: userId,
+        amount: -matchData.entry_fee,
+        type: 'match_entry',
+        status: 'completed',
+        match_id: matchId,
+        notes: `Entry fee for ${matchData.type} match`
+      });
       
-    if (updateError) {
-      console.error("Error updating match slots:", updateError);
-      // Note: We don't rollback here since the user has joined and paid
+    if (transactionError) {
+      console.error("Error creating transaction:", transactionError);
+      // Don't rollback previous operations, but log the error
+      // The user has joined the match but we failed to record the transaction
     }
     
-    // Mark the entry as paid
-    await supabase
-      .from('match_entries')
-      .update({ paid: true })
-      .eq('match_id', matchId)
-      .eq('user_id', userId);
+    // Create notification for match join
+    const { error: notificationError } = await supabase
+      .from('notifications')
+      .insert({
+        user_id: userId,
+        message: `You've successfully joined a ${matchData.type} match. The match will start at ${new Date(matchData.start_time).toLocaleTimeString()}.`
+      });
+      
+    if (notificationError) {
+      console.error("Error creating notification:", notificationError);
+      // Non-critical error, continue
+    }
     
-    toast.success("Successfully joined the match!");
+    toast.success("Successfully joined match");
     return true;
   } catch (error) {
     console.error("Error in joinMatch:", error);
@@ -368,253 +439,116 @@ export const joinMatch = async (matchId: string, userId: string): Promise<boolea
   }
 };
 
-/**
- * Check if a user has access to room details
- */
-export const checkRoomAccessibility = async (
-  matchId: string, 
-  userId: string
-): Promise<{ hasAccess: boolean; match: Match | null }> => {
+// Function to get user's matches
+export const getUserMatches = async (userId: string): Promise<any[]> => {
   try {
-    // Get match details
-    const { data: match, error: matchError } = await supabase
-      .from('matches')
-      .select('*')
-      .eq('id', matchId)
-      .single();
-      
-    if (matchError || !match) {
-      console.error("Error fetching match:", matchError);
-      return { hasAccess: false, match: null };
-    }
-    
-    // Check if the match start time is within 5 minutes
-    const startTime = new Date(match.start_time || '');
-    const now = new Date();
-    const timeDiff = startTime.getTime() - now.getTime();
-    const fiveMinutesInMs = 5 * 60 * 1000;
-    
-    if (timeDiff > fiveMinutesInMs) {
-      return { hasAccess: false, match: match as Match };
-    }
-    
-    // Check if the user has paid for the match
-    const { data: entry, error: entryError } = await supabase
-      .from('match_entries')
-      .select('paid')
-      .eq('match_id', matchId)
-      .eq('user_id', userId)
-      .single();
-      
-    if (entryError || !entry || !entry.paid) {
-      return { hasAccess: false, match: match as Match };
-    }
-    
-    return { hasAccess: true, match: match as Match };
-  } catch (error) {
-    console.error("Error in checkRoomAccessibility:", error);
-    return { hasAccess: false, match: null };
-  }
-};
-
-/**
- * Cancel a match (admin only)
- */
-export const cancelMatch = async (matchId: string, adminId: string): Promise<boolean> => {
-  try {
-    // Update match status to cancelled
-    const { error: updateError } = await supabase
-      .from('matches')
-      .update({ status: 'cancelled' })
-      .eq('id', matchId);
-      
-    if (updateError) {
-      console.error("Error cancelling match:", updateError);
-      throw updateError;
-    }
-    
-    // Get match participants to send notifications and refund
+    // Get all match entries for the user
     const { data: entries, error: entriesError } = await supabase
       .from('match_entries')
-      .select('user_id')
-      .eq('match_id', matchId)
-      .eq('paid', true);
+      .select('match_id')
+      .eq('user_id', userId);
       
     if (entriesError) {
-      console.error("Error fetching match entries:", entriesError);
-      // Continue even if we can't fetch entries
-    } else if (entries && entries.length > 0) {
-      // Get match details for refund amount
-      const { data: match } = await supabase
-        .from('matches')
-        .select('entry_fee')
-        .eq('id', matchId)
-        .single();
-      
-      if (match) {
-        // Process refunds for all participants
-        const transactions = entries.map(entry => ({
-          user_id: entry.user_id,
-          amount: match.entry_fee,
-          type: 'match_refund',
-          match_id: matchId,
-          status: 'completed',
-          notes: `Refund for cancelled match`
-        }));
-        
-        const { error: transactionError } = await supabase
-          .from('transactions')
-          .insert(transactions);
-          
-        if (transactionError) {
-          console.error("Error processing refunds:", transactionError);
-        }
-        
-        // Send notifications to all participants
-        const notifications = entries.map(entry => ({
-          user_id: entry.user_id,
-          message: `A match you joined has been cancelled. Your entry fee has been refunded.`,
-          read: false
-        }));
-        
-        await supabase
-          .from('notifications')
-          .insert(notifications);
-      }
+      console.error("Error fetching user match entries:", entriesError);
+      return [];
     }
     
-    // Log the action
-    await supabase
-      .from('system_logs')
-      .insert({
-        admin_id: adminId,
-        action: 'Match Cancelled',
-        details: `Cancelled match ${matchId}`
-      });
-      
-    return true;
-  } catch (error) {
-    console.error("Error in cancelMatch:", error);
-    return false;
-  }
-};
-
-/**
- * Complete a match (admin only)
- */
-export const completeMatch = async (matchId: string, adminId: string): Promise<boolean> => {
-  try {
-    // Update match status to completed
-    const { error: updateError } = await supabase
-      .from('matches')
-      .update({ status: 'completed' })
-      .eq('id', matchId);
-      
-    if (updateError) {
-      console.error("Error completing match:", updateError);
-      throw updateError;
+    if (!entries?.length) {
+      return [];
     }
     
-    // Log the action
-    await supabase
-      .from('system_logs')
-      .insert({
-        admin_id: adminId,
-        action: 'Match Completed',
-        details: `Marked match ${matchId} as completed`
-      });
-      
-    return true;
-  } catch (error) {
-    console.error("Error in completeMatch:", error);
-    return false;
-  }
-};
-
-// Function to distribute rewards (admin only)
-export const distributeRewards = async (
-  matchId: string, 
-  winners: { userId: string; position: number; kills?: number }[],
-  adminId: string
-): Promise<boolean> => {
-  try {
-    // Get match details
-    const { data: match, error: matchError } = await supabase
+    // Get match details for each entry
+    const matchIds = entries.map(entry => entry.match_id);
+    const { data: matches, error: matchesError } = await supabase
       .from('matches')
       .select('*')
-      .eq('id', matchId)
-      .single();
+      .in('id', matchIds)
+      .order('start_time', { ascending: false });
       
-    if (matchError || !match) {
-      console.error("Error fetching match:", matchError);
-      return false;
+    if (matchesError) {
+      console.error("Error fetching user matches:", matchesError);
+      return [];
     }
     
-    // Process rewards for each winner
-    for (const winner of winners) {
-      let reward = 0;
-      let rewardDetails = '';
-      
-      // Calculate position-based rewards
-      if (winner.position === 1 && match.first_prize) {
-        reward += match.first_prize;
-        rewardDetails = `1st place (${match.first_prize} coins)`;
-      } else if (winner.position === 2 && match.second_prize) {
-        reward += match.second_prize;
-        rewardDetails = `2nd place (${match.second_prize} coins)`;
-      } else if (winner.position === 3 && match.third_prize) {
-        reward += match.third_prize;
-        rewardDetails = `3rd place (${match.third_prize} coins)`;
-      }
-      
-      // Add kill rewards for Battle Royale
-      if (match.type === MatchType.BattleRoyale && winner.kills && match.coins_per_kill) {
-        const killReward = winner.kills * match.coins_per_kill;
-        reward += killReward;
-        rewardDetails += rewardDetails ? ` + ${winner.kills} kills (${killReward} coins)` : `${winner.kills} kills (${killReward} coins)`;
-      }
-      
-      if (reward > 0) {
-        // Create transaction for the reward
-        const { error: transactionError } = await supabase
-          .from('transactions')
-          .insert({
-            user_id: winner.userId,
-            amount: reward,
-            type: 'match_reward',
-            match_id: matchId,
-            status: 'completed',
-            notes: `Reward for ${match.type} match: ${rewardDetails}`
-          });
-          
-        if (transactionError) {
-          console.error("Error creating reward transaction:", transactionError);
-          continue;  // Continue with other winners even if one fails
-        }
-        
-        // Send notification to the winner
-        await supabase
-          .from('notifications')
-          .insert({
-            user_id: winner.userId,
-            message: `You've received ${reward} coins as reward for your performance in a match! ${rewardDetails}`,
-            read: false
-          });
-      }
-    }
-    
-    // Log the action
-    await supabase
-      .from('system_logs')
-      .insert({
-        admin_id: adminId,
-        action: 'Match Rewards Distributed',
-        details: `Distributed rewards for match ${matchId} to ${winners.length} players`
-      });
-      
-    return true;
+    return matches || [];
   } catch (error) {
-    console.error("Error in distributeRewards:", error);
-    return false;
+    console.error("Error in getUserMatches:", error);
+    return [];
   }
+};
+
+// Function to format match data for display
+export const formatMatchForDisplay = (match: Match) => {
+  const formatTime = (timeString: string) => {
+    const date = new Date(timeString);
+    return {
+      date: date.toLocaleDateString(),
+      time: date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      isPast: date < new Date()
+    };
+  };
+  
+  const startTime = formatTime(match.start_time);
+  
+  // Get total prize calculation
+  const totalPrize = match.prize;
+  
+  // Get individual prize information
+  const firstPrize = match.first_prize || Math.floor(totalPrize * 0.6);
+  const secondPrize = match.second_prize || Math.floor(totalPrize * 0.3);
+  const thirdPrize = match.third_prize || Math.floor(totalPrize * 0.1);
+  
+  // Get coins per kill (for Battle Royale)
+  const coinsPerKill = match.type === "battle_royale" ? (match.coins_per_kill || 0) : undefined;
+  
+  // Format match type for display
+  const matchTypeLabel = match.type === "battle_royale" ? "Battle Royale" : "Clash Squad";
+  
+  // Format match mode for display
+  let modeLabel = match.mode || "Standard";
+  if (match.mode === "solo") modeLabel = "Solo";
+  if (match.mode === "duo") modeLabel = "Duo";
+  if (match.mode === "squad") modeLabel = "Squad";
+  if (match.mode === "1v1") modeLabel = "1v1";
+  if (match.mode === "2v2") modeLabel = "2v2";
+  if (match.mode === "4v4") modeLabel = "4v4";
+  
+  // Format room type for display
+  let roomTypeLabel = match.room_type || "Normal";
+  if (match.room_type === "sniper_only") roomTypeLabel = "Sniper Only";
+  if (match.room_type === "pistol_only") roomTypeLabel = "Pistol Only";
+  if (match.room_type === "melee_only") roomTypeLabel = "Melee Only";
+  if (match.room_type === "custom") roomTypeLabel = "Custom Rules";
+  
+  // Room details visibility (only if match is upcoming and within 5 minutes of start time)
+  const now = new Date();
+  const startTimeDate = new Date(match.start_time);
+  const timeDiff = (startTimeDate.getTime() - now.getTime()) / 1000 / 60; // diff in minutes
+  
+  // Room details are visible if match is ongoing or starting in less than 5 minutes
+  const showRoomDetails = match.status === 'ongoing' || (match.status === 'upcoming' && timeDiff <= 5);
+  
+  return {
+    ...match,
+    startTime,
+    totalPrize,
+    firstPrize,
+    secondPrize,
+    thirdPrize,
+    coinsPerKill,
+    matchTypeLabel,
+    modeLabel,
+    roomTypeLabel,
+    showRoomDetails,
+    openSlots: match.slots - match.slots_filled
+  };
+};
+
+// Function to check if a match is starting soon
+export const isMatchStartingSoon = (match: Match): boolean => {
+  const now = new Date();
+  const startTime = new Date(match.start_time);
+  const timeDiff = (startTime.getTime() - now.getTime()) / 1000 / 60; // diff in minutes
+  
+  return timeDiff <= 15 && timeDiff > 0;
 };

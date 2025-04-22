@@ -6,6 +6,12 @@ export interface UserSearchResult {
   email?: string;
 }
 
+interface SupabaseUser {
+  id: string;
+  email?: string;
+  [key: string]: any;
+}
+
 // Add any additional admin utility functions here
 // This file can be expanded as needed for specific admin operations
 export const searchUsers = async (searchTerm: string): Promise<UserSearchResult[]> => {
@@ -20,10 +26,10 @@ export const searchUsers = async (searchTerm: string): Promise<UserSearchResult[
     
     // Filter users by email containing the search term
     const filteredUsers = userData?.users
-      ?.filter(user => 
+      ?.filter((user: SupabaseUser) => 
         user.email && user.email.toLowerCase().includes(searchTerm.toLowerCase())
       )
-      .map(user => ({
+      .map((user: SupabaseUser) => ({
         id: user.id,
         email: user.email
       }))
