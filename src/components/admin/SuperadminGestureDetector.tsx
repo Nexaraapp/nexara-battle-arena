@@ -1,342 +1,204 @@
 
-import React, { useState, useEffect } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { toast } from "sonner";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, User, Wallet, ArrowRight, Coins } from "lucide-react";
+import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
 
-interface SearchUser {
-  id: string;
-  email: string | null;
-}
+interface SuperadminGestureDetectorProps {}
 
-export const SuperadminGestureDetector = () => {
-  const [tapCount, setTapCount] = useState(0);
-  const [showSuperadminModal, setShowSuperadminModal] = useState(false);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const [activeTab, setActiveTab] = useState("login");
-
-  const [searchEmail, setSearchEmail] = useState("");
-  const [searchResults, setSearchResults] = useState<SearchUser[]>([]);
-  const [selectedUser, setSelectedUser] = useState<SearchUser | null>(null);
-  const [coinsToAssign, setCoinsToAssign] = useState("");
-  const [isSearching, setIsSearching] = useState(false);
-  const [isAssigningCoins, setIsAssigningCoins] = useState(false);
+export const SuperadminGestureDetector: React.FC<SuperadminGestureDetectorProps> = () => {
+  const [clickCount, setClickCount] = useState(0);
+  const [lastClickTime, setLastClickTime] = useState(0);
+  const [showDebugDialog, setShowDebugDialog] = useState(false);
+  const [debugEmail, setDebugEmail] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [userSearchResults, setUserSearchResults] = useState<Array<{id: string, email: string | undefined}>>([]);
+  const navigate = useNavigate();
 
   useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
-
-    if (tapCount >= 7) {
-      setShowSuperadminModal(true);
-      setTapCount(0);
-    } else if (tapCount > 0) {
-      timeoutId = setTimeout(() => {
-        setTapCount(0);
-      }, 3000);
-    }
-
-    return () => {
-      clearTimeout(timeoutId);
-    };
-  }, [tapCount]);
-
-  const handleLogoClick = () => {
-    setTapCount((prev) => prev + 1);
-  };
-
-  const handleSuperadminLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoggingIn(true);
-
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) {
-        throw error;
-      }
-
-      try {
-        const { data: roleData, error: roleError } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", data.user?.id)
-          .single();
-
-        if (roleError) {
-          console.error("Role check error:", roleError);
-          toast.error("Failed to check user role, but login successful. Continuing as regular user.");
-          setIsLoggingIn(false);
-          setShowSuperadminModal(false);
-          return;
-        }
-
-        if (roleData?.role === "superadmin") {
-          toast.success("Superadmin login successful");
-          setShowSuperadminModal(false);
-          window.location.href = "/admin";
+    const handleFastClicks = (e: MouseEvent) => {
+      if (e.ctrlKey && e.altKey) {
+        const currentTime = Date.now();
+        if (currentTime - lastClickTime < 500) {
+          setClickCount((prev) => prev + 1);
         } else {
-          toast.error("Access denied: Not a superadmin.");
+          setClickCount(1);
         }
-      } catch (error) {
-        console.error("Role check error:", error);
-        toast.error("Failed to check user role, but login successful. Continuing as regular user.");
-        setShowSuperadminModal(false);
+        setLastClickTime(currentTime);
       }
-    } catch (error: any) {
-      console.error("Superadmin login error:", error);
-      toast.error(error.message || "Login failed. Please try again.");
-    } finally {
-      setIsLoggingIn(false);
-    }
-  };
+    };
 
-  const handleSearchUser = async () => {
-    if (!searchEmail.trim()) {
-      toast.error("Please enter an email to search");
-      return;
-    }
-
-    setIsSearching(true);
-    setSearchResults([]);
-    setSelectedUser(null);
-
-    try {
-      const { data: userData, error: userError } = await supabase.auth.admin.listUsers();
-      
-      if (userError || !userData) {
-        console.error("Error fetching users:", userError);
-        throw new Error("Failed to search users");
-      }
-      
-      // Filter users by email
-      const filteredUsers: SearchUser[] = userData.users
-        .filter(user => 
-          typeof user.email === 'string' && 
-          user.email.toLowerCase().includes(searchEmail.toLowerCase())
-        )
-        .map(user => ({
-          id: user.id,
-          email: user.email
-        }));
-      
-      setSearchResults(filteredUsers.slice(0, 10));
-      
-      if (filteredUsers.length === 0) {
-        toast.error("No users found with that email");
-      }
-    } catch (error: any) {
-      console.error("User search error:", error);
-      toast.error(error.message || "Failed to search users");
-    } finally {
-      setIsSearching(false);
-    }
-  };
-
-  const selectUser = (user: SearchUser) => {
-    if (user && user.id) {
-      setSelectedUser(user);
-    }
-  };
-
-  const handleAssignCoins = async () => {
-    if (!selectedUser) {
-      toast.error("Please select a user first");
-      return;
-    }
-
-    const coins = parseInt(coinsToAssign);
-    if (isNaN(coins) || coins <= 0) {
-      toast.error("Please enter a valid number of coins");
-      return;
-    }
-
-    setIsAssigningCoins(true);
-
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      const { error } = await supabase
-        .from('transactions')
-        .insert({
-          user_id: selectedUser.id,
-          type: "admin_reward",
-          amount: coins,
-          status: "completed",
-          date: new Date().toISOString().split('T')[0],
-          admin_id: session?.user?.id || null,
-          notes: `Assigned by admin/superadmin`,
-          is_real_coins: true
-        });
-
-      if (error) {
-        console.error("Transaction insert error:", error);
-        throw new Error("Failed to record transaction");
-      }
-
-      toast.success(`Successfully assigned ${coins} coins to ${selectedUser.email || 'user'}`);
-      setCoinsToAssign("");
-      setSelectedUser(null);
-    } catch (error: any) {
-      console.error("Coin assignment error:", error);
-      toast.error(error.message || "Failed to assign coins");
-    } finally {
-      setIsAssigningCoins(false);
-    }
-  };
-
-  useEffect(() => {
-    const logoElements = document.querySelectorAll("#app-logo");
-
-    logoElements.forEach((element) => {
-      element.addEventListener("click", handleLogoClick);
-    });
+    window.addEventListener("click", handleFastClicks);
 
     return () => {
-      logoElements.forEach((element) => {
-        element.removeEventListener("click", handleLogoClick);
-      });
+      window.removeEventListener("click", handleFastClicks);
     };
-  }, []);
+  }, [lastClickTime]);
+
+  useEffect(() => {
+    if (clickCount >= 5) {
+      setShowDebugDialog(true);
+      setClickCount(0);
+    }
+  }, [clickCount]);
+
+  const handleDebugEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setDebugEmail(e.target.value);
+  };
+
+  const handleDebugSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!debugEmail.trim()) return;
+
+    setLoading(true);
+
+    try {
+      // Check if email exists in auth.users
+      const { data: users, error: userError } = await supabase.auth.admin.listUsers({
+        page: 1, 
+        perPage: 100
+      });
+
+      if (userError) {
+        throw new Error(userError.message);
+      }
+
+      // Filter by email
+      const foundUsers = users.users.filter(
+        user => user.email?.toLowerCase().includes(debugEmail.toLowerCase())
+      );
+
+      if (foundUsers.length === 0) {
+        toast.error("No users found with that email");
+        setUserSearchResults([]);
+        setLoading(false);
+        return;
+      }
+
+      setUserSearchResults(foundUsers.map(user => ({
+        id: user.id,
+        email: user.email
+      })));
+    } catch (error: any) {
+      console.error("Error searching for user:", error);
+      toast.error(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const makeSuperAdmin = async (userId: string) => {
+    setLoading(true);
+    try {
+      // Check if user is already an admin
+      const { data: existingRole } = await supabase
+        .from("user_roles")
+        .select("*")
+        .eq("user_id", userId)
+        .eq("role", "superadmin")
+        .single();
+
+      if (existingRole) {
+        toast.info("User is already a Superadmin");
+        setLoading(false);
+        return;
+      }
+
+      // Insert the superadmin role
+      const { error: roleError } = await supabase
+        .from("user_roles")
+        .insert([
+          {
+            user_id: userId,
+            role: "superadmin",
+          },
+        ]);
+
+      if (roleError) {
+        throw new Error(roleError.message);
+      }
+
+      // Create a system log entry
+      await supabase.from("system_logs").insert([
+        {
+          admin_id: userId,
+          action: "Superadmin Created",
+          details: "User was designated as a superadmin via debug menu",
+        },
+      ]);
+
+      toast.success("Superadmin role assigned successfully!");
+      setShowDebugDialog(false);
+      navigate("/admin");
+    } catch (error: any) {
+      console.error("Error assigning superadmin role:", error);
+      toast.error(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!showDebugDialog) {
+    return null;
+  }
 
   return (
-    <Dialog open={showSuperadminModal} onOpenChange={setShowSuperadminModal}>
-      <DialogContent className="bg-nexara-bg border-nexara-accent neon-border">
-        <DialogHeader>
-          <DialogTitle className="text-nexara-accent neon-text text-center">
-            Superadmin Access
-          </DialogTitle>
-        </DialogHeader>
-        
-        <Tabs defaultValue="login" value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 bg-muted">
-            <TabsTrigger value="login">Login</TabsTrigger>
-            <TabsTrigger value="manage">Manage Users</TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="login" className="space-y-4 pt-4">
-            <form onSubmit={handleSuperadminLogin} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="superadmin-email">Email</Label>
-                <Input
-                  id="superadmin-email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  className="bg-muted border-nexara-accent/50"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="superadmin-password">Password</Label>
-                <Input
-                  id="superadmin-password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  className="bg-muted border-nexara-accent/50"
-                />
-              </div>
-              <Button
-                type="submit"
-                className="w-full game-button"
-                disabled={isLoggingIn}
-              >
-                {isLoggingIn ? "Authenticating..." : "Login as Superadmin"}
-              </Button>
-            </form>
-          </TabsContent>
-          
-          <TabsContent value="manage" className="space-y-4 pt-4">
-            <DialogDescription className="text-center mb-4">
-              Search for users and manage their coins
-            </DialogDescription>
-            
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
-                <Input
-                  placeholder="Search users by email..."
-                  className="pl-9 bg-muted border-nexara-accent/20"
-                  value={searchEmail}
-                  onChange={(e) => setSearchEmail(e.target.value)}
-                />
-              </div>
-              <Button 
-                className="game-button" 
-                onClick={handleSearchUser}
-                disabled={isSearching}
-              >
-                {isSearching ? "Searching..." : "Search"}
-              </Button>
-            </div>
-            
-            {searchResults.length > 0 && (
-              <div className="mt-4 space-y-2 max-h-40 overflow-y-auto">
-                <Label>Search Results</Label>
-                {searchResults.map((user) => (
-                  <div 
-                    key={user.id} 
-                    className={`flex items-center justify-between p-2 rounded-md cursor-pointer ${
-                      selectedUser?.id === user.id ? 'bg-nexara-accent/30' : 'bg-muted hover:bg-nexara-accent/10'
-                    }`}
-                    onClick={() => selectUser(user)}
+    <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+      <div className="bg-slate-900 rounded-lg p-6 max-w-md w-full border border-slate-700">
+        <h2 className="text-xl font-bold mb-4">Superadmin Access</h2>
+        <form onSubmit={handleDebugSubmit} className="mb-4">
+          <input
+            type="text"
+            placeholder="Search user by email"
+            value={debugEmail}
+            onChange={handleDebugEmailChange}
+            className="w-full p-2 bg-slate-800 border border-slate-700 rounded mb-2"
+            disabled={loading}
+          />
+          <div className="flex justify-between">
+            <button
+              type="button"
+              onClick={() => setShowDebugDialog(false)}
+              className="px-4 py-2 bg-gray-600 rounded hover:bg-gray-700"
+              disabled={loading}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-2 bg-blue-600 rounded hover:bg-blue-700"
+              disabled={loading}
+            >
+              {loading ? "Searching..." : "Search"}
+            </button>
+          </div>
+        </form>
+
+        {userSearchResults.length > 0 && (
+          <div className="mt-4">
+            <h3 className="text-lg font-semibold mb-2">Results:</h3>
+            <div className="max-h-48 overflow-y-auto">
+              {userSearchResults.map((user) => (
+                <div
+                  key={user.id}
+                  className="flex justify-between items-center p-2 border-b border-slate-700 hover:bg-slate-800"
+                >
+                  <span>{user.email || "No email"}</span>
+                  <button
+                    onClick={() => makeSuperAdmin(user.id)}
+                    className="px-3 py-1 bg-green-600 rounded hover:bg-green-700 text-sm"
+                    disabled={loading}
                   >
-                    <div className="flex items-center">
-                      <User className="mr-2 h-4 w-4 text-gray-400" />
-                      <span>{user.email || 'No email'}</span>
-                    </div>
-                    {selectedUser?.id === user.id && (
-                      <ArrowRight className="h-4 w-4 text-nexara-accent" />
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-            
-            {selectedUser && (
-              <div className="mt-6 space-y-4 pt-4 border-t border-nexara-accent/20">
-                <Label>Assign Coins to {selectedUser.email || 'Selected User'}</Label>
-                
-                <div className="flex items-center gap-3">
-                  <div className="relative flex-1">
-                    <Coins className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
-                    <Input
-                      type="number"
-                      placeholder="Number of coins"
-                      className="pl-9 bg-muted border-nexara-accent/20"
-                      value={coinsToAssign}
-                      onChange={(e) => setCoinsToAssign(e.target.value)}
-                    />
-                  </div>
-                  <Button 
-                    className="game-button" 
-                    onClick={handleAssignCoins}
-                    disabled={isAssigningCoins || !coinsToAssign}
-                  >
-                    {isAssigningCoins ? "Sending..." : "Send Coins"}
-                  </Button>
+                    Make Superadmin
+                  </button>
                 </div>
-              </div>
-            )}
-          </TabsContent>
-        </Tabs>
-      </DialogContent>
-    </Dialog>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 };
+
+export default SuperadminGestureDetector;

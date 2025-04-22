@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,7 +52,7 @@ const Matches = () => {
           table: 'transactions',
         },
         (payload) => {
-          if (user && payload.new && payload.new.user_id === user.id) {
+          if (user && payload.new && 'user_id' in payload.new && payload.new.user_id === user.id) {
             fetchWalletBalance(user.id);
           }
         }

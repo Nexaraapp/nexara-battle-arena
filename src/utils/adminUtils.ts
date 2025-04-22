@@ -1,5 +1,14 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+
+/**
+ * Define SearchUser interface for user search results
+ */
+interface SearchUser {
+  id: string;
+  email?: string;
+}
 
 /**
  * Check if user has admin role
@@ -76,15 +85,18 @@ export const createSystemLog = async (adminId: string, action: string, details?:
  */
 export const searchUsersByEmail = async (emailPattern: string, limit = 10): Promise<SearchUser[]> => {
   try {
-    const { data: { users }, error: userError } = await supabase.auth.admin.listUsers();
+    const { data, error } = await supabase.auth.admin.listUsers({
+      page: 1,
+      perPage: 100
+    });
     
-    if (userError || !users) {
-      console.error("Error fetching users:", userError);
+    if (error || !data.users) {
+      console.error("Error fetching users:", error);
       throw new Error("Failed to search users");
     }
     
     // Filter users by email
-    const filteredUsers = users
+    const filteredUsers = data.users
       .filter(user => 
         user.email?.toLowerCase().includes(emailPattern.toLowerCase())
       )
@@ -188,3 +200,8 @@ export const processWithdrawalRequest = async (
     return false;
   }
 };
+
+/**
+ * Export types for use in other files
+ */
+export type { SearchUser };
