@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,7 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { CurrencyRupee, Loader, CircleArrowUp, CircleArrowDown } from "lucide-react";
+import { Rupee, Loader, CircleArrowUp, CircleArrowDown } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDistanceToNow } from "date-fns";
@@ -23,13 +22,11 @@ const Wallet = () => {
   const [activeTab, setActiveTab] = useState("balance");
   const [withdrawalMsg, setWithdrawalMsg] = useState("");
   
-  // QR code image for payments
   const qrCodeUrl = "/lovable-uploads/50e5f998-8ecf-493d-aded-3c24db032cf0.png";
   
   useEffect(() => {
     fetchWalletData();
     
-    // Set up real-time listener for transactions
     const channel = supabase
       .channel('wallet-changes')
       .on('postgres_changes', 
@@ -59,7 +56,9 @@ const Wallet = () => {
     setIsLoadingBalance(true);
     
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data } = await supabase.auth.getSession();
+      const session = data.session;
+      
       if (!session) {
         toast.error("Please log in to access your wallet");
         setIsLoadingBalance(false);
@@ -68,7 +67,6 @@ const Wallet = () => {
       
       const userId = session.user.id;
       
-      // Get transactions
       const { data: transactionsData, error: transactionsError } = await supabase
         .from('transactions')
         .select('*')
@@ -82,7 +80,6 @@ const Wallet = () => {
         setTransactions(transactionsData || []);
       }
       
-      // Calculate balance from transactions
       let calculatedBalance = 0;
       if (transactionsData) {
         calculatedBalance = transactionsData.reduce((total, tx) => {
@@ -123,13 +120,12 @@ const Wallet = () => {
         return;
       }
       
-      // Create a pending transaction
       const { error } = await supabase
         .from('transactions')
         .insert({
           user_id: session.user.id,
           type: 'topup_request',
-          amount: topupAmountInt, // This will be added to balance upon admin approval
+          amount: topupAmountInt,
           status: 'pending',
           date: new Date().toISOString().split('T')[0],
           notes: `Topup request. UTR: ${utrNumber}`
@@ -181,7 +177,6 @@ const Wallet = () => {
         return;
       }
       
-      // Create withdrawal request record
       const { error: withdrawalError } = await supabase
         .from('withdrawals')
         .insert({
@@ -196,13 +191,12 @@ const Wallet = () => {
         throw new Error("Failed to create withdrawal request");
       }
       
-      // Create a pending transaction (will be completed upon admin approval)
       const { error: transactionError } = await supabase
         .from('transactions')
         .insert({
           user_id: session.user.id,
           type: 'withdrawal_request',
-          amount: -withdrawalAmountInt, // Negative as it's a deduction
+          amount: -withdrawalAmountInt,
           status: 'pending',
           date: new Date().toISOString().split('T')[0],
           notes: `Withdrawal request. UPI: ${withdrawalMsg}`
@@ -347,7 +341,7 @@ const Wallet = () => {
                   <div className="text-center mb-4">
                     <p className="text-sm text-gray-400 mb-1">Send payment via UPI to this QR code</p>
                     <div className="flex justify-center items-center gap-1">
-                      <CurrencyRupee className="h-4 w-4" />
+                      <Rupee className="h-4 w-4" />
                       <p className="text-nexara-accent font-medium">nexarabf@ybl</p>
                     </div>
                   </div>

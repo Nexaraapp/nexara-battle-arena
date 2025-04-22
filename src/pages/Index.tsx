@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Gamepad, Trophy, Star, ArrowRight, Loader } from "lucide-react";
@@ -6,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
-import { Match, joinMatch } from "@/utils/matchUtils";
+import { Match, MatchType, MatchStatus, joinMatch } from "@/utils/matchUtils";
 import { toast } from "sonner";
 
 const Index = () => {
@@ -17,12 +16,11 @@ const Index = () => {
     activeTournaments: 0,
     playersOnline: 0,
     prizePool: 0,
-    gamesAvailable: 2 // Hardcoded since we have fixed game modes
+    gamesAvailable: 2
   });
   const [userId, setUserId] = useState<string | null>(null);
   
   useEffect(() => {
-    // Check authentication status
     const checkAuth = async () => {
       const { data } = await supabase.auth.getSession();
       if (data.session?.user) {
@@ -34,7 +32,6 @@ const Index = () => {
     fetchMatches();
     fetchStats();
     
-    // Set up real-time listener for matches
     const channel = supabase
       .channel('public:matches')
       .on('postgres_changes',
@@ -54,7 +51,6 @@ const Index = () => {
   const fetchMatches = async () => {
     setIsLoading(true);
     try {
-      // Fetch upcoming matches that are not full yet
       const { data, error } = await supabase
         .from('matches')
         .select('*')
@@ -67,7 +63,7 @@ const Index = () => {
         toast.error("Failed to load matches");
         setMatches([]);
       } else {
-        setMatches(data || []);
+        setMatches(data as Match[] || []);
       }
     } catch (error) {
       console.error("Error in fetchMatches:", error);
@@ -79,20 +75,16 @@ const Index = () => {
   
   const fetchStats = async () => {
     try {
-      // Count active tournaments
       const { count: activeTournaments, error: tournamentsError } = await supabase
         .from('matches')
         .select('id', { count: 'exact' })
         .in('status', ['upcoming', 'active']);
         
-      // Calculating prize pool (sum of prizes for all upcoming/active matches)
       const { data: prizeData, error: prizeError } = await supabase
         .from('matches')
         .select('prize')
         .in('status', ['upcoming', 'active']);
       
-      // For a real app, this would be a call to a presence service
-      // For now we'll estimate based on recent activity
       const { count: recentlyActive, error: activeError } = await supabase
         .from('match_entries')
         .select('user_id', { count: 'exact', head: true })
@@ -121,7 +113,7 @@ const Index = () => {
     
     const success = await joinMatch(matchId, userId);
     if (success) {
-      fetchMatches(); // Refresh matches after joining
+      fetchMatches();
     }
   };
   
@@ -131,7 +123,6 @@ const Index = () => {
 
   return (
     <div className="space-y-8">
-      {/* Hero Section */}
       <section className="relative rounded-xl overflow-hidden bg-hero-pattern bg-cover bg-center h-56 flex items-center justify-center neon-border animate-pulse-neon">
         <div className="absolute inset-0 bg-nexara-bg/40 backdrop-blur-sm"></div>
         <div className="relative z-10 text-center px-4">
@@ -145,7 +136,6 @@ const Index = () => {
         </div>
       </section>
 
-      {/* Stats Section */}
       <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-nexara-bg rounded-lg p-4 text-center neon-border">
           <div className="text-nexara-accent mb-2">
@@ -180,7 +170,6 @@ const Index = () => {
         </div>
       </section>
 
-      {/* Upcoming Matches Section */}
       <section>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-bold">Upcoming Matches</h2>
@@ -276,7 +265,6 @@ const Index = () => {
         </Tabs>
       </section>
 
-      {/* CTA Section */}
       <section className="bg-nexara-accent/10 rounded-xl p-6 text-center neon-border">
         <h2 className="text-xl font-bold mb-2">New Player? Get 10 Free Coins!</h2>
         <p className="text-gray-300 mb-4">Sign up now and receive 10 coins to join your first match!</p>

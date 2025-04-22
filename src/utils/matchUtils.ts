@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { hasEnoughCoins, createTransaction } from "./transactionUtils";
@@ -6,7 +5,7 @@ import { hasEnoughCoins, createTransaction } from "./transactionUtils";
 /**
  * Match types
  */
-export type MatchType = 'ClashSolo' | 'ClashDuo' | 'BattleRoyale';
+export type MatchType = 'BattleRoyale' | 'ClashSolo' | 'ClashDuo';
 
 /**
  * Match status
@@ -23,12 +22,12 @@ export interface Match {
   prize: number;
   slots: number;
   slots_filled: number;
-  room_id?: string;
-  room_password?: string;
+  room_id?: string | null;
+  room_password?: string | null;
   status: MatchStatus;
   created_by: string;
   created_at: string;
-  start_time?: string;
+  start_time?: string | null;
 }
 
 /**

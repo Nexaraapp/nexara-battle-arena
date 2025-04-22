@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,12 +9,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { Match, joinMatch } from "@/utils/matchUtils";
 
 const Matches = () => {
+  // Update state definition
+  const [matches, setMatches] = useState<Match[]>([]);
   const [activeTab, setActiveTab] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [walletBalance, setWalletBalance] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
-  const [matches, setMatches] = useState<Match[]>([]);
-  const [user, setUser] = useState<any>(null);
+  // Update user session retrieval
+  const [user, setUser] = useState<{ id: string } | null>(null);
 
   useEffect(() => {
     // Check if user is authenticated and get wallet balance
@@ -90,9 +91,7 @@ const Matches = () => {
   };
   
   const fetchMatches = async () => {
-    setIsLoading(true);
     try {
-      // Fetch all upcoming and active matches
       const { data, error } = await supabase
         .from('matches')
         .select('*')
@@ -103,12 +102,11 @@ const Matches = () => {
         console.error("Error fetching matches:", error);
         toast.error("Failed to load matches");
       } else {
-        setMatches(data || []);
+        // Type assertion to ensure Match type
+        setMatches(data as Match[] || []);
       }
     } catch (error) {
       console.error("Error in fetchMatches:", error);
-    } finally {
-      setIsLoading(false);
     }
   };
 
