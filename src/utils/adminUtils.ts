@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 export interface UserSearchResult {
   id: string;
-  email?: string;
+  email: string; // Changed from optional to required to match usage
 }
 
 interface SupabaseUser {
@@ -27,7 +27,7 @@ export const searchUsers = async (searchTerm: string): Promise<UserSearchResult[
     
     return filteredUsers.slice(0, 10).map(user => ({
       id: user.id,
-      email: user.email || 'No email'
+      email: user.email || 'No email' // Ensure email is always provided
     }));
   } catch (error) {
     console.error("Error searching users:", error);

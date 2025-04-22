@@ -20,3 +20,18 @@ export enum RoomType {
   Melee = 'Melee',
   Custom = 'Custom'
 }
+
+export interface Match {
+  id: string;
+  type: string;
+  entry_fee: number;
+  prize: number;
+  slots: number;
+  slots_filled: number;
+  created_at: string;
+  created_by: string;
+  start_time: string | null;
+  room_id?: string | null;
+  room_password?: string | null;
+  status: string;
+}

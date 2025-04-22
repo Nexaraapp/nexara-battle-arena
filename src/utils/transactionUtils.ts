@@ -22,6 +22,98 @@ export interface Transaction {
   is_real_coins?: boolean;
 }
 
+export const COIN_PACKS = [
+  { id: 'pack1', coins: 100, price: 100 },
+  { id: 'pack2', coins: 250, price: 240 },
+  { id: 'pack3', coins: 500, price: 450 },
+  { id: 'pack4', coins: 1000, price: 850 },
+  { id: 'pack5', coins: 2500, price: 2000 },
+];
+
+export const WITHDRAWAL_TIERS = [
+  { coins: 100, firstFivePayoutInr: 100, regularPayoutInr: 95 },
+  { coins: 250, firstFivePayoutInr: 250, regularPayoutInr: 240 },
+  { coins: 500, firstFivePayoutInr: 500, regularPayoutInr: 490 },
+  { coins: 1000, firstFivePayoutInr: 1000, regularPayoutInr: 960 },
+];
+
+export const hasEnoughRealCoins = async (userId: string, amount: number): Promise<boolean> => {
+  try {
+    const { data, error } = await supabase
+      .from('transactions')
+      .select('amount')
+      .eq('user_id', userId)
+      .eq('status', 'completed')
+      .eq('is_real_coins', true);
+      
+    if (error) {
+      console.error("Error checking real coins balance:", error);
+      return false;
+    }
+    
+    const balance = data.reduce((sum, tx) => sum + (tx.amount || 0), 0);
+    return balance >= amount;
+  } catch (error) {
+    console.error("Error in hasEnoughRealCoins:", error);
+    return false;
+  }
+};
+
+export const getUserWithdrawalCount = async (userId: string): Promise<number> => {
+  try {
+    const { data, error } = await supabase
+      .from('withdrawals')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('status', 'completed');
+      
+    if (error) {
+      console.error("Error getting withdrawal count:", error);
+      return 0;
+    }
+    
+    return data.length;
+  } catch (error) {
+    console.error("Error in getUserWithdrawalCount:", error);
+    return 0;
+  }
+};
+
+export const calculateWithdrawalPayout = (coins: number, withdrawalCount: number): number => {
+  const tier = WITHDRAWAL_TIERS.find(t => t.coins === coins);
+  if (!tier) return coins;
+  
+  return withdrawalCount < 5 ? tier.firstFivePayoutInr : tier.regularPayoutInr;
+};
+
+export const getSystemSettings = async () => {
+  try {
+    const { data, error } = await supabase
+      .from('system_settings')
+      .select('*')
+      .single();
+      
+    if (error) {
+      console.error("Error fetching system settings:", error);
+      return {
+        requireAdForWithdrawal: false,
+        matchProfitMargin: 40
+      };
+    }
+    
+    return {
+      requireAdForWithdrawal: data.require_ad_for_withdrawal,
+      matchProfitMargin: data.match_profit_margin
+    };
+  } catch (error) {
+    console.error("Error in getSystemSettings:", error);
+    return {
+      requireAdForWithdrawal: false,
+      matchProfitMargin: 40
+    };
+  }
+};
+
 export const getUserTransactions = async (userId: string): Promise<Transaction[]> => {
   try {
     const { data, error } = await supabase
@@ -60,7 +152,6 @@ export const getTransactionById = async (transactionId: string): Promise<Transac
   }
 };
 
-// Add a transaction to the database
 export const addTransaction = async (transaction: Omit<Transaction, 'id'>): Promise<string | null> => {
   try {
     const { data, error } = await supabase
@@ -91,7 +182,6 @@ export const addTransaction = async (transaction: Omit<Transaction, 'id'>): Prom
   }
 };
 
-// Get user's wallet balance
 export const getUserWalletBalance = async (userId: string): Promise<number> => {
   try {
     const { data, error } = await supabase
@@ -112,7 +202,6 @@ export const getUserWalletBalance = async (userId: string): Promise<number> => {
   }
 };
 
-// Create a topup request
 export const createTopUpRequest = async (
   userId: string, 
   amount: number, 
@@ -143,7 +232,6 @@ export const createTopUpRequest = async (
   }
 };
 
-// Create a withdrawal request
 export const createWithdrawalRequest = async (
   userId: string, 
   amount: number, 
@@ -156,14 +244,12 @@ export const createWithdrawalRequest = async (
       return false;
     }
     
-    // First check if the user has enough balance
     const balance = await getUserWalletBalance(userId);
     if (balance < amount) {
       toast.error("Insufficient balance");
       return false;
     }
     
-    // Check if there's already a pending withdrawal
     const { data: pendingWithdrawals, error: pendingError } = await supabase
       .from('transactions')
       .select('id')
@@ -182,13 +268,12 @@ export const createWithdrawalRequest = async (
       return false;
     }
     
-    // Create the withdrawal transaction
     const { error: withdrawalError } = await supabase
       .from('transactions')
       .insert({
         user_id: userId,
         type: 'withdrawal',
-        amount: -amount, // Use negative amount for withdrawals
+        amount: -amount,
         status: 'pending',
         date: new Date().toISOString().split('T')[0],
         notes: `Withdrawal to ${paymentMethod}. ${payoutDetails}`
@@ -200,7 +285,6 @@ export const createWithdrawalRequest = async (
       return false;
     }
     
-    // Add record to withdrawals table
     const { error: withdrawalsError } = await supabase
       .from('withdrawals')
       .insert({
@@ -210,7 +294,6 @@ export const createWithdrawalRequest = async (
         created_at: new Date().toISOString()
       });
       
-    // This error is not critical, so we don't show it to the user
     if (withdrawalsError && withdrawalsError.code !== 'PGRST116') {
       console.error("Error adding withdrawal record:", withdrawalsError);
     }
@@ -224,22 +307,19 @@ export const createWithdrawalRequest = async (
   }
 };
 
-// Get user info - name, email for display
 export const getUserInfo = async (userId: string): Promise<{ name?: string, email?: string }> => {
   try {
-    // First try to get from auth
-    const { data: userData, error: userError } = await supabase.auth.admin.getUserById(userId);
+    const { data: userData } = await supabase.auth.admin.getUserById(userId);
     
-    if (!userError && userData?.user) {
+    if (userData?.user) {
       return {
         name: userData.user.user_metadata?.name,
         email: userData.user.email
       };
     }
     
-    // If that fails, check if we have a profile with this ID
     const { data: profileData, error: profileError } = await supabase
-      .from('user_roles') // Using user_roles as a fallback - no profiles table
+      .from('user_roles')
       .select('user_id')
       .eq('user_id', userId)
       .single();
