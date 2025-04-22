@@ -1,262 +1,128 @@
+
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
 
-/**
- * Define SearchUser interface for user search results
- */
-interface SearchUser {
+interface UserSearchResult {
   id: string;
   email?: string;
 }
 
-/**
- * Define interface for user data with email property
- */
-interface UserWithEmail {
-  id: string;
-  email?: string;
-  created_at?: string;
-}
-
-/**
- * Check if user has admin role
- */
-export const hasAdminRole = async (userId: string): Promise<boolean> => {
+// Add any additional admin utility functions here
+// This file can be expanded as needed for specific admin operations
+export const searchUsers = async (searchTerm: string): Promise<UserSearchResult[]> => {
   try {
-    const { data, error } = await supabase.rpc('has_role', { 
-      _user_id: userId,
-      _role: 'admin'
-    });
+    // Get all users from Supabase auth
+    const { data: userData, error: userError } = await supabase.auth.admin.listUsers();
     
+    if (userError) {
+      console.error("Error fetching users:", userError);
+      throw new Error("Failed to search users");
+    }
+    
+    // Filter users by email containing the search term
+    const filteredUsers = userData?.users
+      ?.filter(user => 
+        user.email && user.email.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+      .map(user => ({
+        id: user.id,
+        email: user.email
+      }))
+      .slice(0, 10) || [];
+      
+    return filteredUsers;
+  } catch (error) {
+    console.error("Error in searchUsers:", error);
+    return [];
+  }
+};
+
+// Function to check if a user is an admin
+export const checkUserIsAdmin = async (userId: string): Promise<boolean> => {
+  try {
+    const { data, error } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', userId)
+      .single();
+      
     if (error) {
-      console.error("Error checking admin role:", error);
       return false;
     }
     
-    return data || false;
+    return data?.role === 'admin' || data?.role === 'superadmin';
   } catch (error) {
-    console.error("Error in hasAdminRole:", error);
     return false;
   }
 };
 
-/**
- * Check if user has superadmin role
- */
-export const hasSuperadminRole = async (userId: string): Promise<boolean> => {
+// Function to check if a user is a superadmin
+export const checkUserIsSuperAdmin = async (userId: string): Promise<boolean> => {
   try {
-    const { data, error } = await supabase.rpc('has_role', { 
-      _user_id: userId,
-      _role: 'superadmin'
-    });
-    
+    const { data, error } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', userId)
+      .single();
+      
     if (error) {
-      console.error("Error checking superadmin role:", error);
       return false;
     }
     
-    return data || false;
+    return data?.role === 'superadmin';
   } catch (error) {
-    console.error("Error in hasSuperadminRole:", error);
     return false;
   }
 };
 
-/**
- * Create a new system log entry
- */
-export const createSystemLog = async (adminId: string, action: string, details?: string): Promise<boolean> => {
+// Log admin action to system logs
+export const logAdminAction = async (
+  adminId: string, 
+  action: string, 
+  details?: string
+): Promise<boolean> => {
   try {
     const { error } = await supabase
       .from('system_logs')
       .insert({
         admin_id: adminId,
         action,
-        details,
-        created_at: new Date().toISOString()
+        details
       });
-    
+      
     if (error) {
-      console.error("Error creating system log:", error);
+      console.error("Error logging admin action:", error);
       return false;
     }
     
     return true;
   } catch (error) {
-    console.error("Error in createSystemLog:", error);
+    console.error("Error in logAdminAction:", error);
     return false;
   }
 };
 
-/**
- * Search for users by email pattern
- */
-export const searchUsersByEmail = async (emailPattern: string, limit = 10): Promise<SearchUser[]> => {
-  try {
-    const { data, error } = await supabase.auth.admin.listUsers({
-      page: 1,
-      perPage: 100
-    });
-    
-    if (error || !data.users) {
-      console.error("Error fetching users:", error);
-      throw new Error("Failed to search users");
-    }
-    
-    // Filter users by email
-    const filteredUsers = data.users
-      .filter(user => 
-        user.email?.toLowerCase().includes(emailPattern.toLowerCase())
-      )
-      .map(user => ({
-        id: user.id,
-        email: user.email
-      }))
-      .slice(0, limit);
-      
-    return filteredUsers;
-  } catch (error) {
-    console.error("Error in searchUsersByEmail:", error);
-    return [];
-  }
-};
-
-/**
- * Process a topup request
- */
-export const processTopupRequest = async (
-  requestId: string,
-  approve: boolean,
-  adminId: string
+// Check if a specific page is accessible to the current user
+export const checkPageAccess = async (
+  userId: string,
+  requiredRole: 'admin' | 'superadmin' = 'admin'
 ): Promise<boolean> => {
   try {
-    // Update the transaction status
-    const { error: updateError } = await supabase
-      .from('transactions')
-      .update({ 
-        status: approve ? 'completed' : 'rejected',
-        admin_id: adminId
-      })
-      .eq('id', requestId);
-      
-    if (updateError) {
-      console.error("Error updating transaction:", updateError);
-      throw new Error("Failed to update transaction");
-    }
+    if (!userId) return false;
     
-    // Create system log
-    await createSystemLog(
-      adminId, 
-      approve ? 'Topup Request Approved' : 'Topup Request Rejected',
-      `${approve ? 'Approved' : 'Rejected'} topup request ID: ${requestId}`
-    );
-    
-    return true;
-  } catch (error) {
-    console.error("Error in processTopupRequest:", error);
-    return false;
-  }
-};
-
-/**
- * Process a withdrawal request
- */
-export const processWithdrawalRequest = async (
-  requestId: string,
-  approve: boolean,
-  adminId: string,
-  userId: string
-): Promise<boolean> => {
-  try {
-    // Update the transaction status
-    const { error: updateError } = await supabase
-      .from('transactions')
-      .update({ 
-        status: approve ? 'completed' : 'rejected',
-        admin_id: adminId
-      })
-      .eq('id', requestId);
-      
-    if (updateError) {
-      console.error("Error updating transaction:", updateError);
-      throw new Error("Failed to update transaction");
-    }
-    
-    // Update the withdrawal status in the withdrawals table
-    const { error: withdrawalError } = await supabase
-      .from('withdrawals')
-      .update({ 
-        status: approve ? 'completed' : 'rejected'
-      })
-      .eq('user_id', userId);
-      
-    if (withdrawalError && withdrawalError.code !== 'PGRST116') {
-      // Only log as error if it's not a "not found" error
-      console.error("Error updating withdrawal record:", withdrawalError);
-    }
-    
-    // Create system log
-    await createSystemLog(
-      adminId, 
-      approve ? 'Withdrawal Request Approved' : 'Withdrawal Request Rejected',
-      `${approve ? 'Approved' : 'Rejected'} withdrawal request ID: ${requestId} for user ${userId}`
-    );
-    
-    return true;
-  } catch (error) {
-    console.error("Error in processWithdrawalRequest:", error);
-    return false;
-  }
-};
-
-/**
- * Export types for use in other files
- */
-export type { SearchUser };
-
-/**
- * Get all admin users
- */
-export const getAdminUsers = async (): Promise<UserWithEmail[]> => {
-  try {
-    // Get users with admin role
-    const { data: adminRoles, error: rolesError } = await supabase
+    const { data, error } = await supabase
       .from('user_roles')
-      .select('user_id')
-      .eq('role', 'admin');
+      .select('role')
+      .eq('user_id', userId)
+      .single();
       
-    if (rolesError) {
-      console.error("Error fetching admin roles:", rolesError);
-      return [];
+    if (error) return false;
+    
+    if (requiredRole === 'superadmin') {
+      return data?.role === 'superadmin';
     }
     
-    if (!adminRoles || adminRoles.length === 0) {
-      return [];
-    }
-    
-    // Get all admin users
-    const adminIds = adminRoles.map(role => role.user_id);
-    
-    // Fetch user data from auth.users
-    const { data: users, error: usersError } = await supabase.auth.admin.listUsers();
-    
-    if (usersError) {
-      console.error("Error fetching users:", usersError);
-      return [];
-    }
-    
-    // Filter users to just admins and include email
-    const adminUsers = users.users
-      .filter((user: UserWithEmail) => adminIds.includes(user.id))
-      .map((user: UserWithEmail) => ({
-        id: user.id,
-        email: user.email,
-        created_at: user.created_at
-      }));
-      
-    return adminUsers;
+    return data?.role === 'admin' || data?.role === 'superadmin';
   } catch (error) {
-    console.error("Error fetching admin users:", error);
-    return [];
+    return false;
   }
 };

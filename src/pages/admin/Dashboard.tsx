@@ -20,8 +20,22 @@ import {
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { getAllMatches, updateMatchRoomDetails, Match } from "@/utils/matchUtils";
+import { updateMatchRoomDetails } from "@/utils/matchUtils";
 import { setUserAsAdmin, getSystemSettings, updateSystemSettings } from "@/utils/transactionUtils";
+
+// Define type for Match
+interface Match {
+  id: string;
+  type: string;
+  status: string;
+  slots: number;
+  slots_filled: number;
+  entry_fee: number;
+  prize: number;
+  room_id?: string;
+  room_password?: string;
+  created_at: string;
+}
 
 // Define SystemLog type
 interface SystemLog {
@@ -55,6 +69,12 @@ interface WithdrawalRequest {
   notes?: string;
   user_email?: string;
   payout_amount?: number;
+}
+
+// User type for search results
+interface UserSearchResult {
+  id: string;
+  email: string;
 }
 
 const Dashboard = () => {
@@ -143,7 +163,7 @@ const Dashboard = () => {
           });
         } catch (error) {
           console.error("Error fetching user data:", error);
-          requests.push(request);
+          requests.push({...request, user_email: 'Unknown'});
         }
       }
       
@@ -190,7 +210,7 @@ const Dashboard = () => {
           });
         } catch (error) {
           console.error("Error fetching user data:", error);
-          requests.push(request);
+          requests.push({...request, user_email: 'Unknown'});
         }
       }
       
@@ -202,8 +222,17 @@ const Dashboard = () => {
 
   const fetchMatches = async () => {
     try {
-      const matches = await getAllMatches();
-      setMatches(matches);
+      const { data, error } = await supabase
+        .from('matches')
+        .select('*')
+        .order('created_at', { ascending: false });
+        
+      if (error) {
+        console.error("Error fetching matches:", error);
+        return;
+      }
+      
+      setMatches(data as Match[] || []);
     } catch (error) {
       console.error("Error fetching matches:", error);
     }
@@ -313,7 +342,7 @@ const Dashboard = () => {
       
       setSearchResults(filteredUsers.slice(0, 10).map(user => ({
         id: user.id,
-        email: user.email
+        email: user.email || 'No email'
       })));
       
       if (filteredUsers.length === 0) {
@@ -935,209 +964,4 @@ const Dashboard = () => {
                     </div>
                     <Button 
                       type="submit" 
-                      disabled={isSettingAdmin || !adminEmail}
-                      className="w-full"
-                    >
-                      {isSettingAdmin ? 'Processing...' : 'Create Admin'}
-                    </Button>
-                  </form>
-                </CardContent>
-              </Card>
-              
-              <Card>
-                <CardHeader>
-                  <CardTitle>Assign Coins to User</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="flex gap-2">
-                      <div className="relative flex-1">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
-                        <Input
-                          placeholder="Search users by email..."
-                          className="pl-9"
-                          value={searchEmail}
-                          onChange={(e) => setSearchEmail(e.target.value)}
-                        />
-                      </div>
-                      <Button 
-                        onClick={handleSearchUser}
-                        disabled={isSearching || !searchEmail}
-                      >
-                        {isSearching ? 'Searching...' : 'Search'}
-                      </Button>
-                    </div>
-                    
-                    {searchResults.length > 0 && (
-                      <div className="mt-4 space-y-2 max-h-40 overflow-y-auto">
-                        <Label>Search Results</Label>
-                        {searchResults.map((user) => (
-                          <div 
-                            key={user.id} 
-                            className={`flex items-center justify-between p-2 rounded-md cursor-pointer ${
-                              selectedUser?.id === user.id ? 'bg-nexara-accent/30' : 'bg-muted hover:bg-nexara-accent/10'
-                            }`}
-                            onClick={() => selectUser(user)}
-                          >
-                            <div className="flex items-center">
-                              <User className="mr-2 h-4 w-4 text-gray-400" />
-                              <span>{user.email || 'No email'}</span>
-                            </div>
-                            {selectedUser?.id === user.id && (
-                              <ArrowRight className="h-4 w-4 text-nexara-accent" />
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    
-                    {selectedUser && (
-                      <div className="mt-6 space-y-4 pt-4 border-t border-nexara-accent/20">
-                        <Label>Assign Coins to {selectedUser.email || 'Selected User'}</Label>
-                        
-                        <div className="space-y-3">
-                          <div className="flex items-center gap-3">
-                            <div className="relative flex-1">
-                              <Coins className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
-                              <Input
-                                type="number"
-                                placeholder="Number of coins"
-                                className="pl-9"
-                                value={coinsToAssign}
-                                onChange={(e) => setCoinsToAssign(e.target.value)}
-                              />
-                            </div>
-                          </div>
-                          
-                          <div className="flex items-center space-x-2">
-                            <Switch 
-                              id="real-coins" 
-                              checked={isRealCoins} 
-                              onCheckedChange={setIsRealCoins} 
-                            />
-                            <Label htmlFor="real-coins">
-                              {isRealCoins ? 'Real Coins (Withdrawable)' : 'Bonus Coins (Non-withdrawable)'}
-                            </Label>
-                          </div>
-                          
-                          <div>
-                            <Label htmlFor="coins-note">Note</Label>
-                            <Input
-                              id="coins-note"
-                              placeholder="Optional note for this transaction"
-                              className="mt-1"
-                              value={coinsNote}
-                              onChange={(e) => setCoinsNote(e.target.value)}
-                            />
-                          </div>
-                          
-                          <Button 
-                            onClick={handleAssignCoins}
-                            disabled={isAssigningCoins || !coinsToAssign}
-                            className="w-full"
-                          >
-                            {isAssigningCoins ? 'Processing...' : 'Send Coins'}
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-        )}
-        
-        {isSuperAdmin && (
-          <TabsContent value="settings" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>System Settings</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-6">
-                  <div className="space-y-4">
-                    <div className="flex flex-col gap-2">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <Label htmlFor="ad-withdrawal">Require Ad For Withdrawal</Label>
-                          <p className="text-sm text-gray-400">Users must watch an ad before withdrawal</p>
-                        </div>
-                        <Switch 
-                          id="ad-withdrawal" 
-                          checked={requireAdForWithdrawal} 
-                          onCheckedChange={setRequireAdForWithdrawal} 
-                        />
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <Label htmlFor="profit-margin">Match Profit Margin %</Label>
-                      <p className="text-sm text-gray-400 mb-2">Minimum profit percentage required for creating matches</p>
-                      <Input
-                        id="profit-margin"
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={matchProfitMargin}
-                        onChange={(e) => setMatchProfitMargin(parseInt(e.target.value))}
-                      />
-                    </div>
-                  </div>
-                  
-                  <Button
-                    onClick={handleUpdateSettings}
-                    disabled={isUpdatingSettings}
-                    className="w-full"
-                  >
-                    {isUpdatingSettings ? 'Saving...' : 'Save Settings'}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        )}
-        
-        <TabsContent value="logs" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>System Logs</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <table className="min-w-full">
-                  <thead>
-                    <tr className="border-b">
-                      <th className="py-2 px-4 text-left">Time</th>
-                      <th className="py-2 px-4 text-left">Admin</th>
-                      <th className="py-2 px-4 text-left">Action</th>
-                      <th className="py-2 px-4 text-left">Details</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {systemLogs.map((log) => (
-                      <tr key={log.id} className="border-b hover:bg-nexara-accent/5">
-                        <td className="py-2 px-4">{new Date(log.created_at).toLocaleString()}</td>
-                        <td className="py-2 px-4">{log.admin_id === currentAdminId ? 'You' : log.admin_id}</td>
-                        <td className="py-2 px-4">{log.action}</td>
-                        <td className="py-2 px-4">{log.details || 'N/A'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              
-              {systemLogs.length === 0 && (
-                <div className="text-center py-8">
-                  <div className="text-gray-400 mb-2">No system logs found</div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-    </div>
-  );
-};
-
-export default Dashboard;
+                      disabled={isSetting

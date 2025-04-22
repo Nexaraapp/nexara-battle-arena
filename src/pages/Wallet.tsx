@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,7 +22,7 @@ const Wallet = () => {
   const [balance, setBalance] = useState(0);
   const [realCoinsBalance, setRealCoinsBalance] = useState(0);
   const [withdrawalAmount, setWithdrawalAmount] = useState("");
-  const [selectedCoinPack, setSelectedCoinPack] = useState<number | null>(null);
+  const [selectedCoinPack, setSelectedCoinPack] = useState<string | null>(null);
   const [utrNumber, setUtrNumber] = useState("");
   const [isLoadingBalance, setIsLoadingBalance] = useState(true);
   const [isProcessingWithdrawal, setIsProcessingWithdrawal] = useState(false);
