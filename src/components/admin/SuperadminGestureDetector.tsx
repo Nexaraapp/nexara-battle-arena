@@ -24,7 +24,10 @@ export const SuperadminGestureDetector: React.FC<SuperadminGestureDetectorProps>
   const [debugEmail, setDebugEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [userSearchResults, setUserSearchResults] = useState<UserSearchResult[]>([]);
-  const navigate = useNavigate();
+  
+  // Create a safe version of navigate that won't crash if not in Router context
+  // We'll initialize it to a no-op function
+  const navigate = typeof window !== "undefined" ? useNavigate() : ((_to: any) => {});
 
   useEffect(() => {
     const handleFastClicks = (e: MouseEvent) => {
@@ -140,7 +143,15 @@ export const SuperadminGestureDetector: React.FC<SuperadminGestureDetectorProps>
 
       toast.success("Superadmin role assigned successfully!");
       setShowDebugDialog(false);
-      navigate("/admin");
+      
+      // Only navigate if we're in a browser context with Router
+      if (typeof window !== "undefined" && navigate) {
+        try {
+          navigate("/admin");
+        } catch (error) {
+          console.error("Navigation error:", error);
+        }
+      }
     } catch (error: any) {
       console.error("Error assigning superadmin role:", error);
       toast.error(error.message);

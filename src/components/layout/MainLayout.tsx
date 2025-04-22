@@ -4,7 +4,7 @@ import { useLocation } from "react-router-dom";
 import Navbar from "./Navbar";
 import BottomNav from "./BottomNav";
 import { AdminGestureDetector } from "../admin/AdminGestureDetector";
-import SuperadminGestureDetector from "../admin/SuperadminGestureDetector";
+import { SuperadminGestureDetector } from "../admin/SuperadminGestureDetector";
 import { cn } from "@/lib/utils";
 
 type MainLayoutProps = {
@@ -32,7 +32,8 @@ const MainLayout = ({ children }: MainLayoutProps) => {
 
       {/* Hidden admin gesture detector */}
       <AdminGestureDetector />
-      {/* Hidden superadmin gesture detector */}
+      
+      {/* Hidden superadmin gesture detector - Only render within BrowserRouter context */}
       <SuperadminGestureDetector />
     </div>
   );

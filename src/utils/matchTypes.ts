@@ -1,3 +1,4 @@
+
 // Define match types and constants
 export enum MatchType {
   BattleRoyale = 'BattleRoyale',
@@ -20,22 +21,34 @@ export enum RoomType {
   Custom = 'Custom'
 }
 
-// Check if this file exists and add the missing properties to the Match interface
+// Define the comprehensive Match interface that combines both DB schema properties
 export interface Match {
   id: string;
-  title: string;
-  description?: string;
-  start_time: string;
-  end_time: string;
-  status: string;
+  
+  // Properties from the dashboard usage
+  type?: string;
+  slots?: number;
+  slots_filled?: number;
   entry_fee: number;
-  max_participants: number;
-  current_participants: number;
-  game_id: string;
+  prize?: number;
+  room_id?: string;
+  room_password?: string;
+  created_by?: string;
   created_at: string;
-  updated_at: string;
+  start_time: string;
+  status: string;
   mode?: string;
+  
+  // Properties from the API schema
+  title?: string;
+  description?: string;
+  end_time?: string;
+  max_participants?: number;
+  current_participants?: number;
+  game_id?: string;
+  updated_at?: string;
   first_prize?: number;
   second_prize?: number;
   third_prize?: number;
+  coins_per_kill?: number;
 }
