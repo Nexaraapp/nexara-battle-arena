@@ -1,212 +1,106 @@
 
 import { supabase } from "@/integrations/supabase/client";
-import { createNotification } from "./notificationUtils";
 import { toast } from "sonner";
 
-export enum MatchType {
-  CLASH_SQUAD_SOLO = "Clash Squad Solo",
-  CLASH_SQUAD_DUO = "Clash Squad Duo",
-  BATTLE_ROYALE = "Battle Royale"
-}
-
-export enum MatchStatus {
-  UPCOMING = "upcoming",
-  ACTIVE = "active",
-  COMPLETED = "completed",
-  CANCELLED = "cancelled"
-}
-
+// Define Match interface
 export interface Match {
   id: string;
-  created_at: string;
-  created_by: string;
+  type: string;
   entry_fee: number;
   prize: number;
-  room_id: string | null;
-  room_password: string | null;
   slots: number;
   slots_filled: number;
-  start_time: string | null;
-  status: string;
-  type: string;
+  status: 'upcoming' | 'active' | 'completed' | 'cancelled';
+  created_at: string;
+  created_by: string;
+  room_id?: string;
+  room_password?: string;
+  start_time?: string;
 }
 
-export const getUpcomingMatches = async (): Promise<Match[]> => {
-  try {
-    const { data, error } = await supabase
-      .from('matches')
-      .select('*')
-      .eq('status', 'upcoming')
-      .order('start_time', { ascending: true });
-    
-    if (error) {
-      console.error("Error fetching matches:", error);
-      throw error;
-    }
-    
-    return data as Match[];
-  } catch (error) {
-    console.error("Error in getUpcomingMatches:", error);
-    throw error;
-  }
-};
-
+/**
+ * Get all matches
+ */
 export const getAllMatches = async (): Promise<Match[]> => {
   try {
     const { data, error } = await supabase
       .from('matches')
       .select('*')
       .order('created_at', { ascending: false });
-    
+      
     if (error) {
-      console.error("Error fetching all matches:", error);
+      console.error("Error fetching matches:", error);
       throw error;
     }
     
-    return data as Match[];
+    return data || [];
   } catch (error) {
     console.error("Error in getAllMatches:", error);
-    throw error;
+    return [];
   }
 };
 
-export const joinMatch = async (matchId: string, userId: string): Promise<boolean> => {
-  try {
-    // Get the match details
-    const { data: match, error: matchError } = await supabase
-      .from('matches')
-      .select('*')
-      .eq('id', matchId)
-      .single();
-      
-    if (matchError || !match) {
-      console.error("Error fetching match:", matchError);
-      toast.error("Match not found");
-      return false;
-    }
-    
-    // Check if the match is full
-    if (match.slots_filled >= match.slots) {
-      toast.error("Match is already full");
-      return false;
-    }
-    
-    // Check if the user has already joined the match
-    const { data: existingEntry, error: existingEntryError } = await supabase
-      .from('match_entries')
-      .select('*')
-      .eq('match_id', matchId)
-      .eq('user_id', userId)
-      .single();
-      
-    if (existingEntry) {
-      toast.error("You have already joined this match");
-      return false;
-    }
-    
-    // Create a new match entry
-    const { error: entryError } = await supabase
-      .from('match_entries')
-      .insert({
-        match_id: matchId,
-        user_id: userId,
-        slot_number: match.slots_filled + 1,
-        paid: true // Assume payment is handled elsewhere
-      });
-      
-    if (entryError) {
-      console.error("Error creating match entry:", entryError);
-      toast.error("Failed to join match");
-      return false;
-    }
-    
-    // Update the match to increment slots_filled
-    const { error: updateError } = await supabase
-      .from('matches')
-      .update({ slots_filled: match.slots_filled + 1 })
-      .eq('id', matchId);
-      
-    if (updateError) {
-      console.error("Error updating match:", updateError);
-      toast.error("Failed to update match");
-      return false;
-    }
-    
-    toast.success("Successfully joined the match!");
-    return true;
-  } catch (error) {
-    console.error("Error in joinMatch:", error);
-    toast.error("Failed to join match");
-    return false;
-  }
-};
-
+/**
+ * Update match room details
+ */
 export const updateMatchRoomDetails = async (
-  matchId: string, 
-  roomId: string, 
+  matchId: string,
+  roomId: string,
   roomPassword: string,
-  adminId?: string
+  adminId: string
 ): Promise<boolean> => {
   try {
-    const { data: match, error: matchError } = await supabase
-      .from('matches')
-      .select('*')
-      .eq('id', matchId)
-      .single();
-      
-    if (matchError || !match) {
-      console.error("Error fetching match:", matchError);
-      return false;
-    }
-    
-    // Update match with room details
+    // Update match room details
     const { error: updateError } = await supabase
       .from('matches')
       .update({
         room_id: roomId,
-        room_password: roomPassword,
-        status: 'active'
+        room_password: roomPassword
       })
       .eq('id', matchId);
       
     if (updateError) {
-      console.error("Error updating match:", updateError);
-      return false;
+      console.error("Error updating match room details:", updateError);
+      throw updateError;
     }
     
-    // Get all participants
-    const { data: entries, error: entriesError } = await supabase
+    // Get match participants to send notifications
+    const { data: participants, error: participantsError } = await supabase
       .from('match_entries')
       .select('user_id')
       .eq('match_id', matchId);
       
-    if (entriesError) {
-      console.error("Error fetching match entries:", entriesError);
-      return false;
-    }
-    
-    // Notify all participants
-    const message = `Room details for match are ready! Room ID: ${roomId}, Password: ${roomPassword}`;
-    
-    if (entries && entries.length > 0) {
-      const notifications = entries.map(entry => 
-        createNotification(entry.user_id, message)
-      );
+    if (participantsError) {
+      console.error("Error fetching match participants:", participantsError);
+      // Continue even if we can't fetch participants
+    } else if (participants && participants.length > 0) {
+      // Send notifications to all participants
+      const notifications = participants.map(participant => ({
+        user_id: participant.user_id,
+        message: `Room details for your match have been updated. Room ID: ${roomId}, Password: ${roomPassword}`,
+        read: false,
+        created_at: new Date().toISOString()
+      }));
       
-      await Promise.all(notifications);
+      const { error: notificationError } = await supabase
+        .from('notifications')
+        .insert(notifications);
+        
+      if (notificationError) {
+        console.error("Error sending notifications:", notificationError);
+        // Continue even if notifications fail
+      }
     }
     
-    // Log admin action if admin ID is provided
-    if (adminId) {
-      await supabase
-        .from('system_logs')
-        .insert({
-          admin_id: adminId,
-          action: 'Match Room Updated',
-          details: `Updated room details for match ID: ${matchId}`
-        });
-    }
-    
+    // Log the action
+    await supabase
+      .from('system_logs')
+      .insert({
+        admin_id: adminId,
+        action: 'Match Room Updated',
+        details: `Updated room details for match ${matchId}: Room ID ${roomId}`
+      });
+      
     return true;
   } catch (error) {
     console.error("Error in updateMatchRoomDetails:", error);
@@ -214,46 +108,25 @@ export const updateMatchRoomDetails = async (
   }
 };
 
-export const createMatch = async (
-  type: MatchType,
-  entryFee: number,
-  prize: number,
-  slots: number,
-  startTime: string,
-  createdBy: string
-): Promise<Match | null> => {
+export const getMatch = async (matchId: string): Promise<Match | null> => {
   try {
     const { data, error } = await supabase
       .from('matches')
-      .insert({
-        type,
-        entry_fee: entryFee,
-        prize,
-        slots,
-        start_time: startTime,
-        created_by: createdBy,
-        status: MatchStatus.UPCOMING
-      })
-      .select()
+      .select('*')
+      .eq('id', matchId)
       .single();
       
     if (error) {
-      console.error("Error creating match:", error);
+      console.error("Error fetching match details:", error);
       return null;
     }
     
-    // Log admin action
-    await supabase
-      .from('system_logs')
-      .insert({
-        admin_id: createdBy,
-        action: 'Match Created',
-        details: `Created ${type} match with ${slots} slots and ${entryFee} entry fee`
-      });
-      
-    return data as Match;
+    return data;
   } catch (error) {
-    console.error("Error in createMatch:", error);
+    console.error("Error in getMatch:", error);
     return null;
   }
 };
+
+// Re-export any types
+export type { Match };

@@ -3,11 +3,111 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { SearchUser } from "./adminUtils";
 
+// Define coin pack interface
+interface CoinPack {
+  id: number;
+  coins: number;
+  price: number;
+}
+
+// Define withdrawal tier interface
+interface WithdrawalTier {
+  coins: number;
+  firstFivePayoutInr: number;
+  regularPayoutInr: number;
+}
+
 // Define the system settings interface
 interface SystemSettings {
   requireAdForWithdrawal: boolean;
   matchProfitMargin: number;
 }
+
+// Define available coin packs
+export const COIN_PACKS: CoinPack[] = [
+  { id: 1, coins: 60, price: 100 },
+  { id: 2, coins: 120, price: 200 },
+  { id: 3, coins: 300, price: 500 },
+  { id: 4, coins: 600, price: 1000 },
+  { id: 5, coins: 1200, price: 2000 },
+  { id: 6, coins: 3000, price: 5000 }
+];
+
+// Define withdrawal tiers
+export const WITHDRAWAL_TIERS: WithdrawalTier[] = [
+  { coins: 60, firstFivePayoutInr: 100, regularPayoutInr: 80 },
+  { coins: 120, firstFivePayoutInr: 200, regularPayoutInr: 160 },
+  { coins: 300, firstFivePayoutInr: 500, regularPayoutInr: 400 },
+  { coins: 600, firstFivePayoutInr: 1000, regularPayoutInr: 800 }
+];
+
+/**
+ * Check if user has enough real coins for withdrawal
+ */
+export const hasEnoughRealCoins = async (userId: string, amount: number): Promise<boolean> => {
+  try {
+    // Get user's transactions
+    const { data, error } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('is_real_coins', true)
+      .eq('status', 'completed');
+    
+    if (error) {
+      console.error("Error fetching transactions:", error);
+      return false;
+    }
+    
+    // Calculate real coins balance
+    let realCoinsBalance = 0;
+    
+    if (data) {
+      data.forEach(tx => {
+        realCoinsBalance += (tx.amount || 0);
+      });
+    }
+    
+    return realCoinsBalance >= amount;
+  } catch (error) {
+    console.error("Error checking real coins:", error);
+    return false;
+  }
+};
+
+/**
+ * Get user's withdrawal count
+ */
+export const getUserWithdrawalCount = async (userId: string): Promise<number> => {
+  try {
+    const { data, error } = await supabase
+      .from('transactions')
+      .select('count')
+      .eq('user_id', userId)
+      .eq('type', 'withdrawal')
+      .eq('status', 'completed');
+    
+    if (error) {
+      console.error("Error counting withdrawals:", error);
+      return 0;
+    }
+    
+    return data?.[0]?.count || 0;
+  } catch (error) {
+    console.error("Error in getUserWithdrawalCount:", error);
+    return 0;
+  }
+};
+
+/**
+ * Calculate withdrawal payout amount
+ */
+export const calculateWithdrawalPayout = (coins: number, isFirstFive: boolean): number => {
+  const tier = WITHDRAWAL_TIERS.find(t => t.coins === coins);
+  if (!tier) return 0;
+  
+  return isFirstFive ? tier.firstFivePayoutInr : tier.regularPayoutInr;
+};
 
 /**
  * Set a user as an admin
@@ -204,3 +304,6 @@ export const searchUsers = async (emailPattern: string): Promise<SearchUser[]> =
     throw error;
   }
 };
+
+// Export interfaces
+export type { CoinPack, WithdrawalTier, SystemSettings };

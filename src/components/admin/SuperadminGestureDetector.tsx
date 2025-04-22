@@ -6,13 +6,18 @@ import { useNavigate } from "react-router-dom";
 
 interface SuperadminGestureDetectorProps {}
 
+interface UserSearchResult {
+  id: string;
+  email?: string;
+}
+
 export const SuperadminGestureDetector: React.FC<SuperadminGestureDetectorProps> = () => {
   const [clickCount, setClickCount] = useState(0);
   const [lastClickTime, setLastClickTime] = useState(0);
   const [showDebugDialog, setShowDebugDialog] = useState(false);
   const [debugEmail, setDebugEmail] = useState("");
   const [loading, setLoading] = useState(false);
-  const [userSearchResults, setUserSearchResults] = useState<Array<{id: string, email: string | undefined}>>([]);
+  const [userSearchResults, setUserSearchResults] = useState<UserSearchResult[]>([]);
   const navigate = useNavigate();
 
   useEffect(() => {
