@@ -40,7 +40,7 @@ const Wallet = () => {
   const [activeTab, setActiveTab] = useState("overview");
   const [showAdDialog, setShowAdDialog] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState("");
-  const [walletBalance, setWalletBalance] = useState(0); // Default to 0 coins for new users
+  const [walletBalance, setWalletBalance] = useState(0);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
@@ -54,7 +54,6 @@ const Wallet = () => {
   ];
 
   useEffect(() => {
-    // Check authentication
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
@@ -66,7 +65,6 @@ const Wallet = () => {
       setUser(session.user);
       fetchWalletData(session.user.id);
       
-      // Check if this is a first-time user
       const firstTimeUserKey = `welcome_shown_${session.user.id}`;
       if (!localStorage.getItem(firstTimeUserKey)) {
         setShowWelcomeDialog(true);
@@ -78,10 +76,7 @@ const Wallet = () => {
       try {
         setIsLoading(true);
         
-        // Get wallet balance using utility function
         const userBalance = await getUserWalletBalance(userId);
-        
-        // Get transactions using utility function
         const userTransactions = await getUserTransactions(userId);
         
         setWalletBalance(userBalance);
@@ -102,28 +97,23 @@ const Wallet = () => {
   }, [navigate]);
 
   const handleWatchAd = async () => {
-    // Simulate watching an ad
     setShowAdDialog(false);
     
     try {
-      // In a real app, you would call an API to verify the ad was watched
       const coinReward = 1;
       
-      // Get current user session
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         toast.error("You must be logged in to earn coins");
         return;
       }
       
-      // Add a transaction record for the ad reward
       const { data, error } = await supabase
         .from('transactions')
         .insert({
           user_id: session.user.id,
           type: "ad_reward",
           amount: coinReward,
-          date: new Date().toISOString().split('T')[0],
           status: "completed"
         })
         .select();
@@ -132,7 +122,6 @@ const Wallet = () => {
         throw error;
       }
       
-      // Update state
       const newTransaction: Transaction = {
         id: data[0].id,
         user_id: session.user.id,
@@ -156,7 +145,6 @@ const Wallet = () => {
     const selectedPackage = coinPackages.find(pkg => pkg.id === packageId);
     if (selectedPackage) {
       try {
-        // Get current user session
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) {
           toast.error("You must be logged in to buy coins");
@@ -165,18 +153,15 @@ const Wallet = () => {
         
         toast.success(`Redirecting to payment for ${selectedPackage.coins} coins`);
         
-        // For demo, let's simulate a successful payment after a delay
         setTimeout(async () => {
           try {
-            // Create a transaction record for top-up (pending until confirmed by admin)
             const { data, error } = await supabase
               .from('transactions')
               .insert({
                 user_id: session.user.id,
                 type: "topup",
                 amount: selectedPackage.coins,
-                date: new Date().toISOString().split('T')[0],
-                status: "pending" // Will be set to completed after admin approval
+                status: "pending"
               })
               .select();
             
@@ -184,7 +169,6 @@ const Wallet = () => {
               throw error;
             }
             
-            // Add to transactions state
             const newTransaction: Transaction = {
               id: data[0].id,
               user_id: session.user.id,
@@ -223,22 +207,19 @@ const Wallet = () => {
     }
     
     try {
-      // Get current user session
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         toast.error("You must be logged in to withdraw coins");
         return;
       }
       
-      // Create a transaction record for withdrawal (pending)
       const { data, error } = await supabase
         .from('transactions')
         .insert({
           user_id: session.user.id,
           type: "withdrawal",
-          amount: -amount, // Negative amount for withdrawals
-          date: new Date().toISOString().split('T')[0],
-          status: "pending" // Will be updated by admin/superadmin
+          amount: -amount,
+          status: "pending"
         })
         .select();
       
@@ -246,7 +227,6 @@ const Wallet = () => {
         throw error;
       }
       
-      // Add to transactions state
       const newTransaction: Transaction = {
         id: data[0].id,
         user_id: session.user.id,

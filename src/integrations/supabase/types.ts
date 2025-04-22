@@ -9,6 +9,42 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      transactions: {
+        Row: {
+          admin_id: string | null
+          amount: number
+          date: string
+          id: string
+          match_id: string | null
+          notes: string | null
+          status: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          admin_id?: string | null
+          amount: number
+          date?: string
+          id?: string
+          match_id?: string | null
+          notes?: string | null
+          status?: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          admin_id?: string | null
+          amount?: number
+          date?: string
+          id?: string
+          match_id?: string | null
+          notes?: string | null
+          status?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string
@@ -24,6 +60,33 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      withdrawals: {
+        Row: {
+          amount: number | null
+          created_at: string | null
+          id: number
+          qr_url: string | null
+          status: string | null
+          user_id: string | null
+        }
+        Insert: {
+          amount?: number | null
+          created_at?: string | null
+          id?: number
+          qr_url?: string | null
+          status?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          amount?: number | null
+          created_at?: string | null
+          id?: number
+          qr_url?: string | null
+          status?: string | null
+          user_id?: string | null
         }
         Relationships: []
       }

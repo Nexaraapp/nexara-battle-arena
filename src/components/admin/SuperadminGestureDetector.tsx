@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import {
   Dialog,
@@ -16,7 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Search, User, Wallet, ArrowRight, Coins } from "lucide-react";
 import { setUserAsSuperadmin } from "@/utils/transactionUtils";
 
-// Define the user interface
+// Define the user interface with explicit email type
 interface SearchUser {
   id: string;
   email: string | null;
