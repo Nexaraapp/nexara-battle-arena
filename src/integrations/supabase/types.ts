@@ -89,6 +89,30 @@ export type Database = {
         }
         Relationships: []
       }
+      notifications: {
+        Row: {
+          created_at: string
+          id: string
+          message: string
+          read: boolean | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          message: string
+          read?: boolean | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          message?: string
+          read?: boolean | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       system_logs: {
         Row: {
           action: string
@@ -113,12 +137,37 @@ export type Database = {
         }
         Relationships: []
       }
+      system_settings: {
+        Row: {
+          created_at: string
+          id: string
+          match_profit_margin: number
+          require_ad_for_withdrawal: boolean
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          match_profit_margin?: number
+          require_ad_for_withdrawal?: boolean
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          match_profit_margin?: number
+          require_ad_for_withdrawal?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
       transactions: {
         Row: {
           admin_id: string | null
           amount: number
           date: string
           id: string
+          is_real_coins: boolean | null
           match_id: string | null
           notes: string | null
           status: string
@@ -130,6 +179,7 @@ export type Database = {
           amount: number
           date?: string
           id?: string
+          is_real_coins?: boolean | null
           match_id?: string | null
           notes?: string | null
           status?: string
@@ -141,6 +191,7 @@ export type Database = {
           amount?: number
           date?: string
           id?: string
+          is_real_coins?: boolean | null
           match_id?: string | null
           notes?: string | null
           status?: string

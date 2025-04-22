@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -26,7 +25,7 @@ export interface Transaction {
   admin_id?: string | null;
   match_id?: string | null;
   notes?: string | null;
-  is_real_coins?: boolean; // Whether these are real coins (purchased) or bonus coins
+  is_real_coins?: boolean;
 }
 
 // User interface for handling user data

@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -75,20 +74,19 @@ export const createSystemLog = async (adminId: string, action: string, details?:
 /**
  * Search for users by email pattern
  */
-export const searchUsersByEmail = async (emailPattern: string, limit = 10): Promise<any[]> => {
+export const searchUsersByEmail = async (emailPattern: string, limit = 10): Promise<SearchUser[]> => {
   try {
-    const { data: userData, error: userError } = await supabase.auth.admin.listUsers();
+    const { data: { users }, error: userError } = await supabase.auth.admin.listUsers();
     
-    if (userError || !userData) {
+    if (userError || !users) {
       console.error("Error fetching users:", userError);
       throw new Error("Failed to search users");
     }
     
     // Filter users by email
-    const filteredUsers = userData.users
+    const filteredUsers = users
       .filter(user => 
-        typeof user.email === 'string' && 
-        user.email.toLowerCase().includes(emailPattern.toLowerCase())
+        user.email?.toLowerCase().includes(emailPattern.toLowerCase())
       )
       .map(user => ({
         id: user.id,
