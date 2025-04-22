@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { hasEnoughCoins, createTransaction } from "./transactionUtils";
@@ -28,6 +29,19 @@ export interface Match {
   created_by: string;
   created_at: string;
   start_time?: string;
+}
+
+/**
+ * Match participant
+ */
+export interface MatchParticipant {
+  id: string;
+  user_id: string;
+  match_id: string;
+  slot_number: number;
+  paid: boolean;
+  created_at: string;
+  user_email?: string;
 }
 
 /**
@@ -144,5 +158,132 @@ export const getUserMatches = async (userId: string): Promise<Match[]> => {
   } catch (error) {
     console.error("Error getting user matches:", error);
     return [];
+  }
+};
+
+/**
+ * Update match room details (admin only)
+ */
+export const updateMatchRoomDetails = async (
+  matchId: string,
+  roomId: string | null,
+  roomPassword: string | null,
+  adminId: string
+): Promise<boolean> => {
+  try {
+    // Update match room details
+    const { error } = await supabase
+      .from('matches')
+      .update({ 
+        room_id: roomId,
+        room_password: roomPassword
+      })
+      .eq('id', matchId);
+    
+    if (error) {
+      console.error("Error updating match room details:", error);
+      return false;
+    }
+    
+    // Create admin log
+    const { error: logError } = await supabase
+      .from('system_logs')
+      .insert({
+        admin_id: adminId,
+        action: 'Match Room Updated',
+        details: `Updated room details for match ${matchId}`,
+        created_at: new Date().toISOString()
+      });
+    
+    if (logError) {
+      console.error("Error logging admin action:", logError);
+      // Not critical, so we continue
+    }
+    
+    return true;
+  } catch (error) {
+    console.error("Error updating match room details:", error);
+    return false;
+  }
+};
+
+/**
+ * Get match participants with user info
+ */
+export const getMatchParticipants = async (matchId: string): Promise<MatchParticipant[]> => {
+  try {
+    // Get match entries
+    const { data, error } = await supabase
+      .from('match_entries')
+      .select('*')
+      .eq('match_id', matchId);
+    
+    if (error) {
+      console.error("Error fetching match participants:", error);
+      return [];
+    }
+    
+    // For each participant, get user email
+    // In a real app with many participants, this should be done in a batch
+    const participants: MatchParticipant[] = [];
+    
+    for (const entry of data || []) {
+      // Get user email (in a production app, this would use a profiles table)
+      const { data: userData, error: userError } = await supabase.auth.admin.getUserById(
+        entry.user_id
+      );
+      
+      if (!userError && userData.user) {
+        participants.push({
+          ...entry,
+          user_email: userData.user.email || 'Unknown'
+        });
+      } else {
+        participants.push(entry);
+      }
+    }
+    
+    return participants;
+  } catch (error) {
+    console.error("Error getting match participants:", error);
+    return [];
+  }
+};
+
+/**
+ * Create a new match
+ */
+export const createMatch = async (
+  matchType: MatchType,
+  entryFee: number,
+  prize: number,
+  slots: number,
+  userId: string
+): Promise<Match | null> => {
+  try {
+    const { data, error } = await supabase
+      .from('matches')
+      .insert({
+        type: matchType,
+        entry_fee: entryFee,
+        prize: prize,
+        slots: slots,
+        slots_filled: 0,
+        status: 'upcoming',
+        created_by: userId,
+        created_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+    
+    if (error) {
+      console.error("Error creating match:", error);
+      return null;
+    }
+    
+    return data as Match;
+  } catch (error) {
+    console.error("Error creating match:", error);
+    return null;
   }
 };
