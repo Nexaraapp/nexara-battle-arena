@@ -4,7 +4,7 @@ import { useLocation } from "react-router-dom";
 import Navbar from "./Navbar";
 import BottomNav from "./BottomNav";
 import { AdminGestureDetector } from "../admin/AdminGestureDetector";
-import { SuperadminGestureDetector } from "../admin/SuperadminGestureDetector";
+import SuperadminGestureDetector from "../admin/SuperadminGestureDetector";
 import { cn } from "@/lib/utils";
 
 type MainLayoutProps = {

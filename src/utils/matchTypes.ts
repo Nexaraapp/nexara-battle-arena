@@ -1,4 +1,3 @@
-
 // Define match types and constants
 export enum MatchType {
   BattleRoyale = 'BattleRoyale',
@@ -21,17 +20,22 @@ export enum RoomType {
   Custom = 'Custom'
 }
 
+// Check if this file exists and add the missing properties to the Match interface
 export interface Match {
   id: string;
-  type: string;
-  entry_fee: number;
-  prize: number;
-  slots: number;
-  slots_filled: number;
-  created_at: string;
-  created_by: string;
-  start_time: string | null;
-  room_id?: string | null;
-  room_password?: string | null;
+  title: string;
+  description?: string;
+  start_time: string;
+  end_time: string;
   status: string;
+  entry_fee: number;
+  max_participants: number;
+  current_participants: number;
+  game_id: string;
+  created_at: string;
+  updated_at: string;
+  mode?: string;
+  first_prize?: number;
+  second_prize?: number;
+  third_prize?: number;
 }
