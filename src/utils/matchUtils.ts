@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { hasEnoughCoins, createTransaction } from "./transactionUtils";
@@ -63,14 +62,14 @@ export const joinMatch = async (matchId: string, userId: string): Promise<boolea
       return false;
     }
     
-    // 4. Check if user has enough coins - THIS IS THE CRITICAL CHECK
+    // 4. Check if user has enough coins
     const hasBalance = await hasEnoughCoins(userId, match.entry_fee);
     if (!hasBalance) {
       toast.error(`Insufficient balance. You need ${match.entry_fee} coins to join this match.`);
       return false;
     }
     
-    // 5. Create transaction for match entry fee (negative amount)
+    // 5. Create transaction for match entry fee
     const transaction = await createTransaction({
       user_id: userId,
       type: 'match_entry',
@@ -113,7 +112,6 @@ export const joinMatch = async (matchId: string, userId: string): Promise<boolea
       // Not critical, so we don't return false
     }
     
-    // Success!
     toast.success("You have successfully joined the match!");
     return true;
     
@@ -132,7 +130,6 @@ export const getUserMatches = async (userId: string): Promise<Match[]> => {
     const { data, error } = await supabase
       .from('match_entries')
       .select(`
-        match_id,
         matches:match_id (*)
       `)
       .eq('user_id', userId);
@@ -142,12 +139,10 @@ export const getUserMatches = async (userId: string): Promise<Match[]> => {
       return [];
     }
     
-    // Map to Match type, filtering out any invalid entries
-    return data?.map(entry => entry.matches).filter(Boolean) || [];
+    return (data?.map(entry => entry.matches) as Match[]).filter(Boolean) || [];
     
   } catch (error) {
     console.error("Error getting user matches:", error);
     return [];
   }
 };
-

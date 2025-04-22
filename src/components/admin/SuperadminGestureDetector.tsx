@@ -14,14 +14,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Search, User, Wallet, ArrowRight, Coins } from "lucide-react";
 
-// Explicitly define the user interface
 interface SearchUser {
   id: string;
   email: string | null;
 }
 
 export const SuperadminGestureDetector = () => {
-  // We can use e.g. 7 taps within 3 seconds to trigger superadmin modal
   const [tapCount, setTapCount] = useState(0);
   const [showSuperadminModal, setShowSuperadminModal] = useState(false);
   const [email, setEmail] = useState("");
@@ -29,7 +27,6 @@ export const SuperadminGestureDetector = () => {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [activeTab, setActiveTab] = useState("login");
 
-  // User search and coin management
   const [searchEmail, setSearchEmail] = useState("");
   const [searchResults, setSearchResults] = useState<SearchUser[]>([]);
   const [selectedUser, setSelectedUser] = useState<SearchUser | null>(null);
@@ -63,7 +60,6 @@ export const SuperadminGestureDetector = () => {
     setIsLoggingIn(true);
 
     try {
-      // Sign in with supabase auth
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -73,7 +69,6 @@ export const SuperadminGestureDetector = () => {
         throw error;
       }
 
-      // Check if user has superadmin role
       try {
         const { data: roleData, error: roleError } = await supabase
           .from("user_roles")
@@ -92,7 +87,6 @@ export const SuperadminGestureDetector = () => {
         if (roleData?.role === "superadmin") {
           toast.success("Superadmin login successful");
           setShowSuperadminModal(false);
-          // Redirect to admin dashboard
           window.location.href = "/admin";
         } else {
           toast.error("Access denied: Not a superadmin.");
@@ -121,7 +115,6 @@ export const SuperadminGestureDetector = () => {
     setSelectedUser(null);
 
     try {
-      // Use auth.admin.listUsers to get all users and filter client-side
       const { data: authData, error: authError } = await supabase.auth.admin.listUsers();
       
       if (authError) {
@@ -131,15 +124,13 @@ export const SuperadminGestureDetector = () => {
         return;
       }
 
-      // Client-side filtering with clear TypeScript handling
-      const filteredUsers: SearchUser[] = authData.users
+      const filteredUsers = authData.users
         .filter(user => 
-          user.email && 
-          user.email.toLowerCase().includes(searchEmail.toLowerCase())
+          user.email?.toLowerCase().includes(searchEmail.toLowerCase())
         )
         .map(user => ({
           id: user.id,
-          email: user.email || null
+          email: user.email
         }));
 
       setSearchResults(filteredUsers);
@@ -174,10 +165,8 @@ export const SuperadminGestureDetector = () => {
     setIsAssigningCoins(true);
 
     try {
-      // Get current user session to record who assigned the coins
       const { data: { session } } = await supabase.auth.getSession();
       
-      // Create a transaction record for the coin assignment
       const { error } = await supabase
         .from('transactions')
         .insert({
@@ -207,7 +196,6 @@ export const SuperadminGestureDetector = () => {
   };
 
   useEffect(() => {
-    // Listen on app logo for clicks
     const logoElements = document.querySelectorAll("#app-logo");
 
     logoElements.forEach((element) => {

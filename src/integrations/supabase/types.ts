@@ -9,6 +9,86 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      match_entries: {
+        Row: {
+          created_at: string
+          id: string
+          match_id: string
+          paid: boolean
+          slot_number: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          match_id: string
+          paid?: boolean
+          slot_number: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          match_id?: string
+          paid?: boolean
+          slot_number?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "match_entries_match_id_fkey"
+            columns: ["match_id"]
+            isOneToOne: false
+            referencedRelation: "matches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      matches: {
+        Row: {
+          created_at: string
+          created_by: string
+          entry_fee: number
+          id: string
+          prize: number
+          room_id: string | null
+          room_password: string | null
+          slots: number
+          slots_filled: number
+          start_time: string | null
+          status: string
+          type: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          entry_fee: number
+          id?: string
+          prize: number
+          room_id?: string | null
+          room_password?: string | null
+          slots: number
+          slots_filled?: number
+          start_time?: string | null
+          status: string
+          type: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          entry_fee?: number
+          id?: string
+          prize?: number
+          room_id?: string | null
+          room_password?: string | null
+          slots?: number
+          slots_filled?: number
+          start_time?: string | null
+          status?: string
+          type?: string
+        }
+        Relationships: []
+      }
       transactions: {
         Row: {
           admin_id: string | null
