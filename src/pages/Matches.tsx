@@ -3,27 +3,31 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
-import { Search, Filter, Trophy, Clock, Loader, AlertCircle } from "lucide-react";
+import { Search, Filter, Trophy, Clock, Loader } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Match, joinMatch, getUpcomingMatches } from "@/utils/matchUtils";
+import AdDisplay from "@/components/ads/AdDisplay";
+import { AdPlacement, shouldShowAdsToUser } from "@/utils/adUtils";
 
 const Matches = () => {
-  // State definition
   const [matches, setMatches] = useState<Match[]>([]);
   const [activeTab, setActiveTab] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [walletBalance, setWalletBalance] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState<{ id: string } | null>(null);
+  const [isPremiumUser, setIsPremiumUser] = useState(false);
+  
+  const showAds = shouldShowAdsToUser(isPremiumUser);
 
   useEffect(() => {
-    // Check if user is authenticated and get wallet balance
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
         setUser(session.user);
         fetchWalletBalance(session.user.id);
+        checkPremiumStatus(session.user.id);
       }
       fetchMatches();
       setIsLoading(false);
@@ -31,7 +35,6 @@ const Matches = () => {
     
     checkAuth();
     
-    // Set up real-time listener for matches
     const matchesChannel = supabase
       .channel('matches-changes')
       .on('postgres_changes', 
@@ -42,7 +45,6 @@ const Matches = () => {
       )
       .subscribe();
       
-    // Set up real-time listener for transactions (to update balance)
     const transactionsChannel = supabase
       .channel('wallet-changes')
       .on('postgres_changes',
@@ -65,9 +67,24 @@ const Matches = () => {
     };
   }, [user?.id]);
   
+  const checkPremiumStatus = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('subscriptions')
+        .select('is_active')
+        .eq('user_id', userId)
+        .eq('type', 'premium')
+        .maybeSingle();
+        
+      setIsPremiumUser(!!data?.is_active);
+    } catch (error) {
+      console.error("Error checking premium status:", error);
+      setIsPremiumUser(false);
+    }
+  };
+  
   const fetchWalletBalance = async (userId: string) => {
     try {
-      // Get all transactions for this user
       const { data: transactions, error } = await supabase
         .from('transactions')
         .select('amount')
@@ -79,7 +96,6 @@ const Matches = () => {
         return;
       }
       
-      // Calculate balance from transactions
       const balance = transactions
         ? transactions.reduce((sum, tx) => sum + (tx.amount || 0), 0)
         : 0;
@@ -109,7 +125,6 @@ const Matches = () => {
       return;
     }
     
-    // Check if user has enough coins
     if (walletBalance < entryFee) {
       toast.error(`Insufficient balance. You need ${entryFee} coins to join this match.`);
       return;
@@ -117,19 +132,17 @@ const Matches = () => {
     
     const success = await joinMatch(matchId, user.id);
     if (success) {
-      fetchMatches(); // Refresh matches after joining
-      fetchWalletBalance(user.id); // Refresh wallet balance
+      fetchMatches();
+      fetchWalletBalance(user.id);
     }
   };
   
   const filteredMatches = matches.filter(match => {
-    // Filter by tab selection
     if (activeTab !== "all") {
       if (activeTab === "battle-royale" && match.type !== "BattleRoyale") return false;
       if (activeTab === "clash-squad" && !match.type.startsWith("Clash")) return false;
     }
     
-    // Filter by search query (search in match type)
     if (searchQuery && !match.type.toLowerCase().includes(searchQuery.toLowerCase())) {
       return false;
     }
@@ -174,6 +187,14 @@ const Matches = () => {
         </div>
       </header>
 
+      {showAds && (
+        <AdDisplay 
+          size="banner"
+          placement={AdPlacement.HOME_BANNER}
+          className="mb-4"
+        />
+      )}
+
       {user && (
         <div className="flex justify-end">
           <div className="bg-nexara-accent/10 px-4 py-2 rounded-md">
@@ -183,135 +204,148 @@ const Matches = () => {
         </div>
       )}
 
-      <Tabs defaultValue="all" onValueChange={setActiveTab} className="w-full">
-        <TabsList className="bg-muted mb-4 grid w-full grid-cols-3">
-          <TabsTrigger value="all">All Matches</TabsTrigger>
-          <TabsTrigger value="battle-royale">Battle Royale</TabsTrigger>
-          <TabsTrigger value="clash-squad">Clash Squad</TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value={activeTab} className="mt-0">
-          {isLoading ? (
-            <div className="flex justify-center py-16">
-              <Loader className="h-8 w-8 animate-spin text-nexara-accent" />
-            </div>
-          ) : filteredMatches.length > 0 ? (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {filteredMatches.map((match) => {
-                const isJoinable = match.slots_filled < match.slots && match.status === 'upcoming';
-                
-                return (
-                  <Card key={match.id} className="game-card overflow-hidden">
-                    <CardContent className="p-0">
-                      <div className="flex items-center">
-                        <div 
-                          className={`w-1 self-stretch ${
-                            match.type === "BattleRoyale" 
-                              ? "bg-nexara-accent" 
-                              : "bg-nexara-highlight"
-                          }`} 
-                        />
-                        <div className="p-4 flex-1">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center text-sm text-gray-400">
-                              <Clock size={14} className="mr-1" />
-                              {match.start_time 
-                                ? new Date(match.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                                : 'Time TBD'
-                              }
-                            </div>
-                            <div className={`text-xs px-2 py-1 rounded ${
-                              isJoinable
-                                ? 'bg-green-900/40 text-green-400' 
-                                : match.status === 'active'
-                                  ? 'bg-blue-900/40 text-blue-400'
-                                  : 'bg-gray-800/40 text-gray-400'
-                            }`}>
-                              {match.status === 'active' 
-                                ? 'In Progress' 
-                                : isJoinable 
-                                  ? 'Joinable' 
-                                  : 'Full'}
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-1 mt-1">
-                            <h3 className="text-lg font-bold">
-                              {getMatchTypeLabel(match.type)}
-                            </h3>
-                            {match.type === "BattleRoyale" && (
-                              <Trophy size={16} className="text-nexara-accent" />
-                            )}
-                          </div>
-                          <div className="flex mt-2 text-sm">
-                            <div className="pr-3 border-r border-nexara-accent/30">
-                              <div className="text-gray-400">Entry</div>
-                              <div className="font-semibold">{match.entry_fee} coins</div>
-                            </div>
-                            <div className="px-3 border-r border-nexara-accent/30">
-                              <div className="text-gray-400">Prize</div>
-                              <div className="font-semibold">{match.prize} coins</div>
-                            </div>
-                            <div className="px-3">
-                              <div className="text-gray-400">Players</div>
-                              <div className="font-semibold">{match.slots_filled}/{match.slots}</div>
-                            </div>
-                          </div>
-                          
-                          {match.status === 'active' && match.room_id && match.room_password && (
-                            <div className="mt-3 p-2 bg-nexara-accent/10 rounded-md">
-                              <div className="text-xs text-nexara-accent mb-1">Room Details:</div>
-                              <div className="grid grid-cols-2 gap-2">
-                                <div>
-                                  <div className="text-xs text-gray-400">ID:</div>
-                                  <div className="font-mono text-sm">{match.room_id}</div>
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <div className="lg:col-span-3">
+          <Tabs defaultValue="all" onValueChange={setActiveTab} className="w-full">
+            <TabsList className="bg-muted mb-4 grid w-full grid-cols-3">
+              <TabsTrigger value="all">All Matches</TabsTrigger>
+              <TabsTrigger value="battle-royale">Battle Royale</TabsTrigger>
+              <TabsTrigger value="clash-squad">Clash Squad</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value={activeTab} className="mt-0">
+              {isLoading ? (
+                <div className="flex justify-center py-16">
+                  <Loader className="h-8 w-8 animate-spin text-nexara-accent" />
+                </div>
+              ) : filteredMatches.length > 0 ? (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {filteredMatches.map((match) => {
+                    const isJoinable = match.slots_filled < match.slots && match.status === 'upcoming';
+                    
+                    return (
+                      <Card key={match.id} className="game-card overflow-hidden">
+                        <CardContent className="p-0">
+                          <div className="flex items-center">
+                            <div 
+                              className={`w-1 self-stretch ${
+                                match.type === "BattleRoyale" 
+                                  ? "bg-nexara-accent" 
+                                  : "bg-nexara-highlight"
+                              }`} 
+                            />
+                            <div className="p-4 flex-1">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center text-sm text-gray-400">
+                                  <Clock size={14} className="mr-1" />
+                                  {match.start_time 
+                                    ? new Date(match.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                                    : 'Time TBD'
+                                  }
                                 </div>
-                                <div>
-                                  <div className="text-xs text-gray-400">Password:</div>
-                                  <div className="font-mono text-sm">{match.room_password}</div>
+                                <div className={`text-xs px-2 py-1 rounded ${
+                                  isJoinable
+                                    ? 'bg-green-900/40 text-green-400' 
+                                    : match.status === 'active'
+                                      ? 'bg-blue-900/40 text-blue-400'
+                                      : 'bg-gray-800/40 text-gray-400'
+                                }`}>
+                                  {match.status === 'active' 
+                                    ? 'In Progress' 
+                                    : isJoinable 
+                                      ? 'Joinable' 
+                                      : 'Full'}
                                 </div>
                               </div>
+                              <div className="flex items-center gap-1 mt-1">
+                                <h3 className="text-lg font-bold">
+                                  {getMatchTypeLabel(match.type)}
+                                </h3>
+                                {match.type === "BattleRoyale" && (
+                                  <Trophy size={16} className="text-nexara-accent" />
+                                )}
+                              </div>
+                              <div className="flex mt-2 text-sm">
+                                <div className="pr-3 border-r border-nexara-accent/30">
+                                  <div className="text-gray-400">Entry</div>
+                                  <div className="font-semibold">{match.entry_fee} coins</div>
+                                </div>
+                                <div className="px-3 border-r border-nexara-accent/30">
+                                  <div className="text-gray-400">Prize</div>
+                                  <div className="font-semibold">{match.prize} coins</div>
+                                </div>
+                                <div className="px-3">
+                                  <div className="text-gray-400">Players</div>
+                                  <div className="font-semibold">{match.slots_filled}/{match.slots}</div>
+                                </div>
+                              </div>
+                              
+                              {match.status === 'active' && match.room_id && match.room_password && (
+                                <div className="mt-3 p-2 bg-nexara-accent/10 rounded-md">
+                                  <div className="text-xs text-nexara-accent mb-1">Room Details:</div>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                      <div className="text-xs text-gray-400">ID:</div>
+                                      <div className="font-mono text-sm">{match.room_id}</div>
+                                    </div>
+                                    <div>
+                                      <div className="text-xs text-gray-400">Password:</div>
+                                      <div className="font-mono text-sm">{match.room_password}</div>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
-                        <div className="h-full flex items-center justify-center p-4">
-                          {match.status === 'active' ? (
-                            <Button 
-                              className="game-button h-10 px-3"
-                              disabled={!match.room_id}
-                            >
-                              {match.room_id ? 'Join Game' : 'Waiting...'}
-                            </Button>
-                          ) : (
-                            <Button 
-                              className="game-button h-10 px-3"
-                              disabled={!isJoinable || match.entry_fee > walletBalance}
-                              onClick={() => isJoinable && handleJoinMatch(match.id, match.entry_fee)}
-                            >
-                              {match.entry_fee > walletBalance ? 'Insufficient coins' : 'Join'}
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="text-center py-12">
-              <div className="mx-auto bg-nexara-accent/10 rounded-full w-12 h-12 flex items-center justify-center mb-3">
-                <Trophy className="text-nexara-accent h-6 w-6" />
-              </div>
-              <h3 className="text-lg font-medium">No matches found</h3>
-              <p className="text-gray-400 mt-1">
-                {searchQuery 
-                  ? "Try adjusting your search filters." 
-                  : "No upcoming matches are available at the moment. Check back soon!"}
-              </p>
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
+                            <div className="h-full flex items-center justify-center p-4">
+                              {match.status === 'active' ? (
+                                <Button 
+                                  className="game-button h-10 px-3"
+                                  disabled={!match.room_id}
+                                >
+                                  {match.room_id ? 'Join Game' : 'Waiting...'}
+                                </Button>
+                              ) : (
+                                <Button 
+                                  className="game-button h-10 px-3"
+                                  disabled={!isJoinable || match.entry_fee > walletBalance}
+                                  onClick={() => isJoinable && handleJoinMatch(match.id, match.entry_fee)}
+                                >
+                                  {match.entry_fee > walletBalance ? 'Insufficient coins' : 'Join'}
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <div className="mx-auto bg-nexara-accent/10 rounded-full w-12 h-12 flex items-center justify-center mb-3">
+                    <Trophy className="text-nexara-accent h-6 w-6" />
+                  </div>
+                  <h3 className="text-lg font-medium">No matches found</h3>
+                  <p className="text-gray-400 mt-1">
+                    {searchQuery 
+                      ? "Try adjusting your search filters." 
+                      : "No upcoming matches are available at the moment. Check back soon!"}
+                  </p>
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
+        </div>
+
+        {showAds && (
+          <div className="hidden lg:block">
+            <AdDisplay 
+              size="sidebar"
+              placement={AdPlacement.MATCH_SIDEBAR}
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 };

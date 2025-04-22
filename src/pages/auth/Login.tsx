@@ -17,10 +17,14 @@ const Login = () => {
   useEffect(() => {
     // Check if already logged in
     const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        // Already logged in, redirect to appropriate page
-        navigate("/");
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          // Already logged in, redirect to appropriate page
+          navigate("/");
+        }
+      } catch (error) {
+        console.error("Error checking session:", error);
       }
     };
     
@@ -47,40 +51,36 @@ const Login = () => {
         } else {
           toast.error(error.message);
         }
-        setIsLoading(false);
         return;
       }
       
       toast.success("Login successful!");
       
-      // Check if user has superadmin role
-      try {
-        const { data: roleData, error: roleError } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", data.user.id)
-          .single();
+      // Check if user has special role
+      const checkUserRole = async () => {
+        try {
+          const { data: roleData, error: roleError } = await supabase
+            .from("user_roles")
+            .select("role")
+            .eq("user_id", data.user.id)
+            .single();
+            
+          if (roleData?.role === "superadmin" || roleData?.role === "admin") {
+            // If admin or superadmin, redirect to admin dashboard
+            navigate("/admin", { replace: true });
+            return;
+          }
           
-        if (roleData?.role === "superadmin") {
-          // If superadmin, redirect to admin dashboard
-          navigate("/admin");
-          return;
-        } else if (roleData?.role === "admin") {
-          // If admin, redirect to admin dashboard
-          navigate("/admin");
-          return;
+          // Regular user, redirect to home
+          navigate("/", { replace: true });
+        } catch (roleCheckError) {
+          console.error("Role check error:", roleCheckError);
+          // Default to regular user flow if role check fails
+          navigate("/", { replace: true });
         }
-        
-        // If role check doesn't error but user doesn't have any special role,
-        // they're a regular user - continue to home
-      } catch (roleCheckError) {
-        console.error("Role check error:", roleCheckError);
-        // Don't block the login flow if role check fails
-        // Just log the error and continue to regular user flow
-      }
+      };
       
-      // Regular user, redirect to home
-      navigate("/");
+      await checkUserRole();
     } catch (error: any) {
       console.error("Login error:", error);
       toast.error(error.message || "Login failed. Please check your credentials.");

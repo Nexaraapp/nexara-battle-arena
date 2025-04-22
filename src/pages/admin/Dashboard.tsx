@@ -1,10 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
@@ -13,32 +10,32 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Loader2, ArrowUpDown, Search, Filter, Trophy, Plus, X, DollarSign, Users, ChevronDown, ChevronUp } from "lucide-react";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 import { 
-  Search, User, UsersRound, ArrowRight, Coins,
-  Wallet, Clock, Check, X, AlertCircle, CircleDollarSign,
-  ShieldCheck, Trophy, Settings, Eye, Trash2, Clock4
-} from "lucide-react";
-import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
-import { 
-  updateRoomDetails, 
-  updateMatchRoomDetails,
+  getMatches, 
   createMatch, 
-  MatchType, 
-  RoomType, 
-  RoomMode, 
   cancelMatch, 
-  completeMatch
+  completeMatch,
+  Match,
+  MatchType
 } from "@/utils/matchUtils";
-import { setUserAsAdmin, getSystemSettings, updateSystemSettings } from "@/utils/transactionUtils";
-import { Badge } from "@/components/ui/badge";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { 
+  getUserTransactions, 
+  createTransaction, 
+  TransactionType, 
+  Transaction
+} from "@/utils/transactionUtils";
 import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
-import { UserSearchResult, searchUsers } from "@/utils/adminUtils";
+import { searchUsers, UserSearchResult as AdminUserSearchResult } from "@/utils/adminUtils";
+
+type UserSearchResult = AdminUserSearchResult;
 
 // Define type for Match
 interface Match {
@@ -389,27 +386,27 @@ const Dashboard = () => {
     };
   }, []);
   
-  const handleSearchUser = async () => {
+  const handleUserSearch = async () => {
     if (!searchEmail.trim()) {
       toast.error("Please enter an email to search");
       return;
     }
 
     setIsSearching(true);
-    setSearchResults([]);
     setSelectedUser(null);
 
     try {
       // Use the searchUsers utility function from adminUtils
       const results = await searchUsers(searchEmail);
-      setSearchResults(results);
+      // Cast the results to match our expected type
+      setSearchResults(results as UserSearchResult[]);
       
       if (results.length === 0) {
         toast.error("No users found with that email");
       }
     } catch (error: any) {
-      console.error("User search error:", error);
-      toast.error(error.message || "Failed to search users");
+      console.error("Error searching users:", error);
+      toast.error(error.message || "Failed to search for users");
     } finally {
       setIsSearching(false);
     }
@@ -1523,7 +1520,7 @@ const Dashboard = () => {
                           />
                           <Button 
                             className="rounded-l-none"
-                            onClick={handleSearchUser}
+                            onClick={handleUserSearch}
                             disabled={isSearching}
                           >
                             {isSearching ? 'Searching...' : <Search className="h-4 w-4" />}

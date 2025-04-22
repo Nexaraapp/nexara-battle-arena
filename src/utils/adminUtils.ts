@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 
 export interface UserSearchResult {
@@ -12,37 +11,29 @@ interface SupabaseUser {
   [key: string]: any;
 }
 
-// Add any additional admin utility functions here
-// This file can be expanded as needed for specific admin operations
 export const searchUsers = async (searchTerm: string): Promise<UserSearchResult[]> => {
   try {
-    // Get all users from Supabase auth
     const { data: userData, error: userError } = await supabase.auth.admin.listUsers();
     
-    if (userError) {
+    if (userError || !userData) {
       console.error("Error fetching users:", userError);
       throw new Error("Failed to search users");
     }
     
-    // Filter users by email containing the search term
-    const filteredUsers = userData?.users
-      ?.filter((user: SupabaseUser) => 
-        user.email && user.email.toLowerCase().includes(searchTerm.toLowerCase())
-      )
-      .map((user: SupabaseUser) => ({
-        id: user.id,
-        email: user.email
-      }))
-      .slice(0, 10) || [];
-      
-    return filteredUsers;
+    const filteredUsers = userData.users.filter(user => 
+      user.email && user.email.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    
+    return filteredUsers.slice(0, 10).map(user => ({
+      id: user.id,
+      email: user.email || 'No email'
+    }));
   } catch (error) {
-    console.error("Error in searchUsers:", error);
-    return [];
+    console.error("Error searching users:", error);
+    throw error;
   }
 };
 
-// Function to check if a user is an admin
 export const checkUserIsAdmin = async (userId: string): Promise<boolean> => {
   try {
     const { data, error } = await supabase
@@ -61,7 +52,6 @@ export const checkUserIsAdmin = async (userId: string): Promise<boolean> => {
   }
 };
 
-// Function to check if a user is a superadmin
 export const checkUserIsSuperAdmin = async (userId: string): Promise<boolean> => {
   try {
     const { data, error } = await supabase
@@ -80,7 +70,6 @@ export const checkUserIsSuperAdmin = async (userId: string): Promise<boolean> =>
   }
 };
 
-// Log admin action to system logs
 export const logAdminAction = async (
   adminId: string, 
   action: string, 
@@ -107,7 +96,6 @@ export const logAdminAction = async (
   }
 };
 
-// Check if a specific page is accessible to the current user
 export const checkPageAccess = async (
   userId: string,
   requiredRole: 'admin' | 'superadmin' = 'admin'

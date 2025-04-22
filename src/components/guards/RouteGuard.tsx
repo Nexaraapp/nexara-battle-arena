@@ -1,5 +1,5 @@
 
-import { ReactNode, useEffect } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Loader2 } from 'lucide-react';
@@ -24,34 +24,47 @@ export const RouteGuard: React.FC<RouteGuardProps> = ({
   const { isAuthenticated, isAdmin, isSuperadmin, loading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [isChecking, setIsChecking] = useState(true);
 
   useEffect(() => {
-    if (!loading) {
-      // Check authentication first
-      if (requireAuth && !isAuthenticated) {
-        toast.error("Please login to access this page");
-        navigate('/login', { state: { from: location.pathname } });
-        return;
-      }
+    const checkAuth = async () => {
+      try {
+        if (loading) return;
 
-      // Then check admin permissions
-      if (requireAdmin && !isAdmin()) {
-        toast.error("Access denied: Admin permissions required");
-        navigate('/');
-        return;
-      }
+        // Check authentication first
+        if (requireAuth && !isAuthenticated) {
+          toast.error("Please login to access this page");
+          navigate('/login', { state: { from: location.pathname } });
+          return;
+        }
 
-      // Finally check superadmin permissions
-      if (requireSuperadmin && !isSuperadmin()) {
-        toast.error("Access denied: Superadmin permissions required");
-        navigate('/');
-        return;
+        // Then check admin permissions
+        if (requireAdmin && !(await isAdmin())) {
+          toast.error("Access denied: Admin permissions required");
+          navigate('/');
+          return;
+        }
+
+        // Finally check superadmin permissions
+        if (requireSuperadmin && !(await isSuperadmin())) {
+          toast.error("Access denied: Superadmin permissions required");
+          navigate('/');
+          return;
+        }
+      } catch (error) {
+        console.error("Error in RouteGuard:", error);
+        toast.error("An error occurred while checking permissions");
+        navigate('/login');
+      } finally {
+        setIsChecking(false);
       }
-    }
+    };
+
+    checkAuth();
   }, [loading, isAuthenticated, requireAuth, requireAdmin, requireSuperadmin, navigate, location, isAdmin, isSuperadmin]);
 
   // Show loading state while checking authentication
-  if (loading) {
+  if (loading || isChecking) {
     return (
       <div className="flex items-center justify-center h-screen">
         <Loader2 className="h-8 w-8 animate-spin text-nexara-accent" />

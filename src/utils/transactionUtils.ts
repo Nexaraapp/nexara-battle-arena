@@ -1,6 +1,6 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { UserSearchResult } from "@/utils/adminUtils";
 
 // Define coin packs for top-ups
 export const COIN_PACKS = [
@@ -11,6 +11,27 @@ export const COIN_PACKS = [
   { id: 'pack5', coins: 2000, price: 200 },
   { id: 'pack6', coins: 5000, price: 500 }
 ];
+
+// Define transaction type enum
+export enum TransactionType {
+  DEPOSIT = 'deposit',
+  WITHDRAWAL = 'withdrawal',
+  MATCH_ENTRY = 'match_entry',
+  MATCH_PRIZE = 'match_prize',
+  REFUND = 'refund'
+}
+
+// Transaction interface
+export interface Transaction {
+  id: string;
+  user_id: string;
+  amount: number;
+  type: TransactionType;
+  description?: string;
+  status: 'pending' | 'completed' | 'failed';
+  created_at: string;
+  user_email?: string; // Make email optional
+}
 
 // Function to get system settings
 export const getSystemSettings = async () => {
@@ -230,4 +251,83 @@ export const WITHDRAWAL_TIERS = [
 export const getNextWithdrawalTier = (balance: number) => {
   const eligibleTiers = WITHDRAWAL_TIERS.filter(tier => tier.coins <= balance);
   return eligibleTiers.length > 0 ? eligibleTiers[eligibleTiers.length - 1] : null;
+};
+
+// Function to get user transactions
+export const getUserTransactions = async (userId: string): Promise<Transaction[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+    
+    if (error) {
+      console.error("Error fetching transactions:", error);
+      throw new Error(error.message);
+    }
+
+    // Get user email
+    let userEmail = "";
+    try {
+      const { data: userData, error: userError } = await supabase
+        .from('profiles')
+        .select('email')
+        .eq('id', userId)
+        .single();
+      
+      if (!userError && userData) {
+        userEmail = userData.email || "";
+      }
+    } catch (e) {
+      console.error("Error fetching user email:", e);
+    }
+
+    return data.map(tx => ({
+      ...tx,
+      user_email: userEmail
+    }));
+  } catch (error) {
+    console.error("Error in getUserTransactions:", error);
+    throw error;
+  }
+};
+
+// Function to process transaction for admin
+export const processTransactionForAdmin = async (user: UserSearchResult, amount: number, type: TransactionType, description: string) => {
+  try {
+    if (!user || !user.id) {
+      throw new Error("Invalid user data");
+    }
+    
+    // Handle email property safely, making sure it exists
+    const userEmail = user.email || "No email provided";
+    
+    // Create a transaction
+    const { data, error } = await supabase
+      .from('transactions')
+      .insert([
+        {
+          user_id: user.id,
+          amount,
+          type,
+          description: `${description} - Admin action for ${userEmail}`,
+          status: 'completed'
+        }
+      ])
+      .select()
+      .single();
+    
+    if (error) {
+      console.error("Error creating transaction:", error);
+      throw new Error(error.message);
+    }
+    
+    toast.success(`Transaction processed successfully for ${userEmail}`);
+    return data;
+  } catch (error: any) {
+    console.error("Error in processTransaction:", error);
+    toast.error(error.message || "Failed to process transaction");
+    throw error;
+  }
 };
