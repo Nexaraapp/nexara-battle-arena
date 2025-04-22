@@ -21,11 +21,11 @@ export const searchUsers = async (searchTerm: string): Promise<UserSearchResult[
       throw new Error("Failed to search users");
     }
     
-    const filteredUsers = authData.users.filter(user => 
+    const filteredUsers = authData.users.filter((user: SupabaseUser) => 
       user.email && user.email.toLowerCase().includes(searchTerm.toLowerCase())
     );
     
-    return filteredUsers.slice(0, 10).map(user => ({
+    return filteredUsers.slice(0, 10).map((user: SupabaseUser) => ({
       id: user.id,
       email: user.email || 'No email'
     }));
