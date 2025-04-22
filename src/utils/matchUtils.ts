@@ -127,7 +127,7 @@ export const joinMatch = async (matchId: string, userId: string): Promise<boolea
 /**
  * Get all matches a user has joined
  */
-export const getUserMatches = async (userId: string): Promise<any[]> => {
+export const getUserMatches = async (userId: string): Promise<Match[]> => {
   try {
     const { data, error } = await supabase
       .from('match_entries')
@@ -142,10 +142,12 @@ export const getUserMatches = async (userId: string): Promise<any[]> => {
       return [];
     }
     
-    return data || [];
+    // Map to Match type, filtering out any invalid entries
+    return data?.map(entry => entry.matches).filter(Boolean) || [];
     
   } catch (error) {
     console.error("Error getting user matches:", error);
     return [];
   }
 };
+

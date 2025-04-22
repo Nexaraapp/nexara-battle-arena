@@ -13,9 +13,8 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Search, User, Wallet, ArrowRight, Coins } from "lucide-react";
-import { setUserAsSuperadmin } from "@/utils/transactionUtils";
 
-// Define the user interface with explicit email type
+// Explicitly define the user interface
 interface SearchUser {
   id: string;
   email: string | null;
@@ -122,50 +121,26 @@ export const SuperadminGestureDetector = () => {
     setSelectedUser(null);
 
     try {
-      // Search for users by email using auth.admin.listUsers()
+      // Use auth.admin.listUsers to get all users and filter client-side
       const { data: authData, error: authError } = await supabase.auth.admin.listUsers();
       
       if (authError) {
         console.error("User search error:", authError);
         toast.error("Failed to search users. Admin API might be restricted.");
-        
-        try {
-          // Try fallback method - get users from auth list
-          const { data: authUsers, error } = await supabase.auth.admin.listUsers();
-          if (error || !authUsers) {
-            toast.error("Could not search users through any available method");
-            setIsSearching(false);
-            return;
-          }
-
-          const filteredUsers = authUsers.users
-            .filter(user => user.email && user.email.toLowerCase().includes(searchEmail.toLowerCase()))
-            .map(user => ({
-              id: user.id,
-              email: user.email
-            }));
-
-          setSearchResults(filteredUsers);
-          
-          if (filteredUsers.length === 0) {
-            toast.error("No users found with that email");
-          }
-        } catch (error) {
-          toast.error("Could not search users through any available method");
-          setIsSearching(false);
-          return;
-        }
-        
+        setIsSearching(false);
         return;
       }
 
-      // Filter users by email
-      const filteredUsers = authData?.users
-        .filter(user => user.email && user.email.toLowerCase().includes(searchEmail.toLowerCase()))
+      // Client-side filtering with clear TypeScript handling
+      const filteredUsers: SearchUser[] = authData.users
+        .filter(user => 
+          user.email && 
+          user.email.toLowerCase().includes(searchEmail.toLowerCase())
+        )
         .map(user => ({
           id: user.id,
-          email: user.email
-        })) || [];
+          email: user.email || null
+        }));
 
       setSearchResults(filteredUsers);
       
