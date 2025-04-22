@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -22,7 +21,8 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { 
-  updateMatchRoomDetails, 
+  updateRoomDetails, 
+  updateMatchRoomDetails,
   createMatch, 
   MatchType, 
   RoomType, 
@@ -38,6 +38,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
+import { UserSearchResult } from "@/utils/adminUtils";
 
 // Define type for Match
 interface Match {
@@ -138,8 +139,8 @@ const Dashboard = () => {
   
   // User search
   const [searchEmail, setSearchEmail] = useState("");
-  const [searchResults, setSearchResults] = useState<any[]>([]);
-  const [selectedUser, setSelectedUser] = useState<any | null>(null);
+  const [searchResults, setSearchResults] = useState<UserSearchResult[]>([]);
+  const [selectedUser, setSelectedUser] = useState<UserSearchResult | null>(null);
   const [coinsToAssign, setCoinsToAssign] = useState("");
   const [isRealCoins, setIsRealCoins] = useState(true);
   const [coinsNote, setCoinsNote] = useState("");

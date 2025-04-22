@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -44,6 +43,22 @@ export const MATCH_TYPES = [
   { value: "clash_squad", label: "Clash Squad" }
 ];
 
+// Export MatchType enum for use in other files
+export enum MatchType {
+  BattleRoyale = "battle_royale",
+  ClashSolo = "clash_solo",
+  ClashDuo = "clash_duo",
+  ClashSquad = "clash_squad"
+}
+
+// Export MatchStatus enum for use in other files
+export enum MatchStatus {
+  Upcoming = "upcoming",
+  Ongoing = "ongoing",
+  Completed = "completed",
+  Cancelled = "cancelled"
+}
+
 // Match mode options
 export const MATCH_MODES = {
   battle_royale: [
@@ -58,6 +73,13 @@ export const MATCH_MODES = {
   ]
 };
 
+// Export RoomMode enum for use in other files
+export enum RoomMode {
+  Solo = "solo",
+  Duo = "duo",
+  Squad = "squad"
+}
+
 // Room type options
 export const ROOM_TYPES = [
   { value: "normal", label: "Normal" },
@@ -66,6 +88,15 @@ export const ROOM_TYPES = [
   { value: "melee_only", label: "Melee Only" },
   { value: "custom", label: "Custom Rules" }
 ];
+
+// Export RoomType enum for use in other files
+export enum RoomType {
+  Normal = "normal",
+  Sniper = "sniper_only",
+  Pistol = "pistol_only",
+  Melee = "melee_only",
+  Custom = "custom"
+}
 
 // Get slot count based on match type and mode
 export const getSlotCountForMode = (type: string, mode: string): number => {
@@ -257,7 +288,7 @@ export const updateMatchStatus = async (
   }
 };
 
-// Function to update room details
+// Function to update room details (aliased as updateMatchRoomDetails for backward compatibility)
 export const updateRoomDetails = async (
   matchId: string, 
   roomId: string, 
@@ -296,6 +327,9 @@ export const updateRoomDetails = async (
     return false;
   }
 };
+
+// Export alias for backward compatibility
+export const updateMatchRoomDetails = updateRoomDetails;
 
 // Function to join a match
 export const joinMatch = async (
@@ -551,4 +585,117 @@ export const isMatchStartingSoon = (match: Match): boolean => {
   const timeDiff = (startTime.getTime() - now.getTime()) / 1000 / 60; // diff in minutes
   
   return timeDiff <= 15 && timeDiff > 0;
+};
+
+// Function to cancel a match
+export const cancelMatch = async (matchId: string, adminId: string): Promise<boolean> => {
+  try {
+    // Get the match details first
+    const { data: match, error: matchError } = await supabase
+      .from('matches')
+      .select('*')
+      .eq('id', matchId)
+      .single();
+      
+    if (matchError || !match) {
+      console.error("Error fetching match:", matchError);
+      toast.error("Match not found");
+      return false;
+    }
+    
+    // Update match status to cancelled
+    const { error: updateError } = await supabase
+      .from('matches')
+      .update({ status: 'cancelled' })
+      .eq('id', matchId);
+      
+    if (updateError) {
+      console.error("Error updating match status:", updateError);
+      toast.error("Failed to cancel match");
+      return false;
+    }
+    
+    // Get all users who joined this match
+    const { data: entries, error: entriesError } = await supabase
+      .from('match_entries')
+      .select('user_id')
+      .eq('match_id', matchId);
+      
+    if (entriesError) {
+      console.error("Error fetching match entries:", entriesError);
+      // Continue with the cancellation even if we can't refund everyone
+    } else {
+      // Refund entry fee to all participants
+      for (const entry of entries || []) {
+        // Create a refund transaction
+        await supabase
+          .from('transactions')
+          .insert({
+            user_id: entry.user_id,
+            amount: match.entry_fee, // Positive amount for refund
+            type: 'match_refund',
+            status: 'completed',
+            match_id: matchId,
+            notes: `Refund for cancelled ${match.type} match`
+          });
+          
+        // Create a notification for the user
+        await supabase
+          .from('notifications')
+          .insert({
+            user_id: entry.user_id,
+            message: `A match you joined has been cancelled. Your entry fee of ${match.entry_fee} coins has been refunded.`
+          });
+      }
+    }
+    
+    // Log the admin action
+    await supabase
+      .from('system_logs')
+      .insert({
+        admin_id: adminId,
+        action: 'Match Cancelled',
+        details: `Cancelled match ${matchId} and refunded ${entries?.length || 0} participants`
+      });
+      
+    toast.success("Match cancelled successfully");
+    return true;
+  } catch (error) {
+    console.error("Error in cancelMatch:", error);
+    toast.error("An unexpected error occurred");
+    return false;
+  }
+};
+
+// Function to complete a match
+export const completeMatch = async (matchId: string, adminId: string): Promise<boolean> => {
+  try {
+    // Update match status to completed
+    const { error } = await supabase
+      .from('matches')
+      .update({ status: 'completed' })
+      .eq('id', matchId);
+      
+    if (error) {
+      console.error("Error completing match:", error);
+      toast.error("Failed to complete match");
+      return false;
+    }
+    
+    // Log the admin action
+    await supabase
+      .from('system_logs')
+      .insert({
+        admin_id: adminId,
+        action: 'Match Completed',
+        details: `Marked match ${matchId} as completed`
+      });
+      
+    toast.success("Match marked as completed");
+    return true;
+  } catch (error) {
+    console.error("Error in completeMatch:", error);
+    toast.error("An unexpected error occurred");
+    return false;
+  }
 };
