@@ -10,16 +10,11 @@ import {
   DialogTitle,
   DialogFooter
 } from "@/components/ui/dialog";
+import { searchUsers } from "@/utils/adminUtils";
 
 interface SuperadminGestureDetectorProps {}
 
 interface UserSearchResult {
-  id: string;
-  email?: string;
-}
-
-// Define the User interface for Supabase auth users
-interface SupabaseAuthUser {
   id: string;
   email?: string;
 }
@@ -93,35 +88,20 @@ export const SuperadminGestureDetector: React.FC<SuperadminGestureDetectorProps>
     setLoading(true);
 
     try {
-      // Check if email exists in auth.users
-      const { data: users, error: userError } = await supabase.auth.admin.listUsers({
-        page: 1, 
-        perPage: 100
-      });
-
-      if (userError) {
-        throw new Error(userError.message);
-      }
-
-      // Filter by email
-      const foundUsers = users.users.filter(
-        (user: SupabaseAuthUser) => user.email?.toLowerCase().includes(debugEmail.toLowerCase())
-      );
-
-      if (foundUsers.length === 0) {
+      // Use the searchUsers utility function to find users by email
+      const users = await searchUsers(debugEmail);
+      
+      if (users.length === 0) {
         toast.error("No users found with that email");
         setUserSearchResults([]);
         setLoading(false);
         return;
       }
 
-      setUserSearchResults(foundUsers.map((user: SupabaseAuthUser) => ({
-        id: user.id,
-        email: user.email
-      })));
+      setUserSearchResults(users);
     } catch (error: any) {
       console.error("Error searching for user:", error);
-      toast.error(error.message);
+      toast.error(error.message || "Failed to search for users");
     } finally {
       setLoading(false);
     }
