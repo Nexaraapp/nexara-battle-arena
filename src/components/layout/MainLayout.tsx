@@ -21,7 +21,7 @@ const MainLayout = ({ children }: MainLayoutProps) => {
 
       <main
         className={cn(
-          "flex-1 container mx-auto px-4 pb-20 pt-4",
+          "flex-1 container mx-auto px-4 pb-20",
           isAdminRoute ? "pt-4" : "pt-20"
         )}
       >

@@ -27,11 +27,20 @@ export const SuperadminGestureDetector: React.FC<SuperadminGestureDetectorProps>
   
   // Create a safe version of navigate that won't crash if not in Router context
   // We'll initialize it to a no-op function
-  const navigate = typeof window !== "undefined" ? useNavigate() : ((_to: any) => {});
+  let navigate = () => {};
+  try {
+    // Only use the hook if we're in a component that's within Router context
+    const nav = useNavigate();
+    navigate = nav;
+  } catch (error) {
+    // If we're not in a Router context, the navigate function will remain a no-op
+    console.log("Navigation not available in this context");
+  }
 
   useEffect(() => {
     const handleFastClicks = (e: MouseEvent) => {
-      if (e.ctrlKey && e.altKey) {
+      // Make it easier to trigger: only require Alt key (no Ctrl)
+      if (e.altKey) {
         const currentTime = Date.now();
         if (currentTime - lastClickTime < 500) {
           setClickCount((prev) => prev + 1);
@@ -42,15 +51,28 @@ export const SuperadminGestureDetector: React.FC<SuperadminGestureDetectorProps>
       }
     };
 
-    window.addEventListener("click", handleFastClicks);
+    // Also add a special trigger for logo clicks
+    const logoElement = document.getElementById("app-logo");
+    if (logoElement) {
+      const handleLogoClick = () => {
+        setClickCount((prev) => prev + 1);
+      };
+      logoElement.addEventListener("click", handleLogoClick);
+      return () => {
+        window.removeEventListener("click", handleFastClicks);
+        logoElement.removeEventListener("click", handleLogoClick);
+      };
+    }
 
+    window.addEventListener("click", handleFastClicks);
     return () => {
       window.removeEventListener("click", handleFastClicks);
     };
   }, [lastClickTime]);
 
   useEffect(() => {
-    if (clickCount >= 5) {
+    // Reduce the number of clicks required to 3
+    if (clickCount >= 3) {
       setShowDebugDialog(true);
       setClickCount(0);
     }
@@ -144,13 +166,12 @@ export const SuperadminGestureDetector: React.FC<SuperadminGestureDetectorProps>
       toast.success("Superadmin role assigned successfully!");
       setShowDebugDialog(false);
       
-      // Only navigate if we're in a browser context with Router
-      if (typeof window !== "undefined" && navigate) {
-        try {
-          navigate("/admin");
-        } catch (error) {
-          console.error("Navigation error:", error);
-        }
+      try {
+        typeof navigate === "function" && navigate("/admin");
+      } catch (error) {
+        console.error("Navigation error:", error);
+        // Fallback to window location change if navigation fails
+        window.location.href = "/admin";
       }
     } catch (error: any) {
       console.error("Error assigning superadmin role:", error);
@@ -165,30 +186,31 @@ export const SuperadminGestureDetector: React.FC<SuperadminGestureDetectorProps>
   }
 
   return (
-    <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
-      <div className="bg-slate-900 rounded-lg p-6 max-w-md w-full border border-slate-700">
-        <h2 className="text-xl font-bold mb-4">Superadmin Access</h2>
+    <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+      <div className="bg-nexara-bg rounded-lg p-6 max-w-md w-full border border-nexara-accent neon-border">
+        <h2 className="text-xl font-bold mb-4 text-nexara-accent neon-text">Superadmin Access</h2>
         <form onSubmit={handleDebugSubmit} className="mb-4">
           <input
             type="text"
             placeholder="Search user by email"
             value={debugEmail}
             onChange={handleDebugEmailChange}
-            className="w-full p-2 bg-slate-800 border border-slate-700 rounded mb-2"
+            className="w-full p-2 bg-slate-800 border border-nexara-accent/30 rounded mb-2 text-white"
             disabled={loading}
+            autoFocus
           />
           <div className="flex justify-between">
             <button
               type="button"
               onClick={() => setShowDebugDialog(false)}
-              className="px-4 py-2 bg-gray-600 rounded hover:bg-gray-700"
+              className="px-4 py-2 bg-gray-600 rounded hover:bg-gray-700 text-white"
               disabled={loading}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-blue-600 rounded hover:bg-blue-700"
+              className="px-4 py-2 bg-nexara-accent rounded hover:bg-nexara-accent2 text-white"
               disabled={loading}
             >
               {loading ? "Searching..." : "Search"}
@@ -198,17 +220,17 @@ export const SuperadminGestureDetector: React.FC<SuperadminGestureDetectorProps>
 
         {userSearchResults.length > 0 && (
           <div className="mt-4">
-            <h3 className="text-lg font-semibold mb-2">Results:</h3>
+            <h3 className="text-lg font-semibold mb-2 text-white">Results:</h3>
             <div className="max-h-48 overflow-y-auto">
               {userSearchResults.map((user) => (
                 <div
                   key={user.id}
-                  className="flex justify-between items-center p-2 border-b border-slate-700 hover:bg-slate-800"
+                  className="flex justify-between items-center p-2 border-b border-nexara-accent/30 hover:bg-nexara-accent/10"
                 >
-                  <span>{user.email || "No email"}</span>
+                  <span className="text-white">{user.email || "No email"}</span>
                   <button
                     onClick={() => makeSuperAdmin(user.id)}
-                    className="px-3 py-1 bg-green-600 rounded hover:bg-green-700 text-sm"
+                    className="px-3 py-1 bg-nexara-accent rounded hover:bg-nexara-accent2 text-white text-sm"
                     disabled={loading}
                   >
                     Make Superadmin
