@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -22,6 +23,7 @@ export interface Transaction {
   is_real_coins?: boolean;
 }
 
+// Explicitly export COIN_PACKS
 export const COIN_PACKS = [
   { id: 'pack1', coins: 100, price: 100 },
   { id: 'pack2', coins: 250, price: 240 },

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -43,6 +42,7 @@ import {
   getSystemSettings, updateSystemSettings, setUserAsAdmin, updateMatchRoomDetails 
 } from "@/utils/adminHelpers";
 import { MatchType, RoomMode, RoomType } from "@/utils/matchTypes";
+import { Match } from "@/utils/matchTypes"; // Add this import
 
 // Define type for Match
 interface MatchData {
