@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -69,14 +70,17 @@ const Matches = () => {
   
   const checkPremiumStatus = async (userId: string) => {
     try {
+      // Check premium status in transactions
       const { data, error } = await supabase
-        .from('subscriptions')
-        .select('is_active')
+        .from('transactions')
+        .select('status')
         .eq('user_id', userId)
-        .eq('type', 'premium')
-        .maybeSingle();
+        .eq('type', 'premium_subscription')
+        .eq('status', 'completed')
+        .order('date', { ascending: false })
+        .limit(1);
         
-      setIsPremiumUser(!!data?.is_active);
+      setIsPremiumUser(data && data.length > 0);
     } catch (error) {
       console.error("Error checking premium status:", error);
       setIsPremiumUser(false);

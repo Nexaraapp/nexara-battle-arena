@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 
 export interface UserSearchResult {
@@ -13,14 +14,14 @@ interface SupabaseUser {
 
 export const searchUsers = async (searchTerm: string): Promise<UserSearchResult[]> => {
   try {
-    const { data: userData, error: userError } = await supabase.auth.admin.listUsers();
+    const { data: authData, error: authError } = await supabase.auth.admin.listUsers();
     
-    if (userError || !userData) {
-      console.error("Error fetching users:", userError);
+    if (authError || !authData) {
+      console.error("Error fetching users:", authError);
       throw new Error("Failed to search users");
     }
     
-    const filteredUsers = userData.users.filter(user => 
+    const filteredUsers = authData.users.filter(user => 
       user.email && user.email.toLowerCase().includes(searchTerm.toLowerCase())
     );
     

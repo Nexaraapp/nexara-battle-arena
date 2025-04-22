@@ -1,333 +1,258 @@
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { UserSearchResult } from "@/utils/adminUtils";
 
-// Define coin packs for top-ups
-export const COIN_PACKS = [
-  { id: 'pack1', coins: 100, price: 10 },
-  { id: 'pack2', coins: 200, price: 20 },
-  { id: 'pack3', coins: 500, price: 50 },
-  { id: 'pack4', coins: 1000, price: 100 },
-  { id: 'pack5', coins: 2000, price: 200 },
-  { id: 'pack6', coins: 5000, price: 500 }
-];
-
-// Define transaction type enum
 export enum TransactionType {
-  DEPOSIT = 'deposit',
-  WITHDRAWAL = 'withdrawal',
   MATCH_ENTRY = 'match_entry',
   MATCH_PRIZE = 'match_prize',
-  REFUND = 'refund'
+  TOPUP = 'topup',
+  WITHDRAWAL = 'withdrawal',
+  ADMIN_REWARD = 'admin_reward'
 }
 
-// Transaction interface
 export interface Transaction {
   id: string;
   user_id: string;
+  type: string;
   amount: number;
-  type: TransactionType;
-  description?: string;
-  status: 'pending' | 'completed' | 'failed';
-  created_at: string;
-  user_email?: string; // Make email optional
+  status: string;
+  date: string;
+  match_id?: string;
+  notes?: string;
+  admin_id?: string;
+  is_real_coins?: boolean;
 }
 
-// Function to get system settings
-export const getSystemSettings = async () => {
-  try {
-    const { data, error } = await supabase
-      .from('system_settings')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
-      
-    if (error) {
-      console.error("Error fetching system settings:", error);
-      return {
-        requireAdForWithdrawal: false,
-        matchProfitMargin: 40
-      };
-    }
-    
-    return {
-      requireAdForWithdrawal: data.require_ad_for_withdrawal,
-      matchProfitMargin: data.match_profit_margin
-    };
-  } catch (error) {
-    console.error("Error in getSystemSettings:", error);
-    return {
-      requireAdForWithdrawal: false,
-      matchProfitMargin: 40
-    };
-  }
-};
-
-// Function to update system settings
-export const updateSystemSettings = async (
-  settings: {
-    requireAdForWithdrawal: boolean;
-    matchProfitMargin: number;
-  },
-  adminId: string
-): Promise<boolean> => {
-  try {
-    const { error } = await supabase
-      .from('system_settings')
-      .insert({
-        require_ad_for_withdrawal: settings.requireAdForWithdrawal,
-        match_profit_margin: settings.matchProfitMargin,
-        updated_at: new Date().toISOString()
-      });
-      
-    if (error) {
-      console.error("Error updating system settings:", error);
-      throw error;
-    }
-    
-    // Log the action
-    await supabase
-      .from('system_logs')
-      .insert({
-        admin_id: adminId,
-        action: 'System Settings Updated',
-        details: `Updated system settings: Match profit margin: ${settings.matchProfitMargin}%, Ad for withdrawal: ${settings.requireAdForWithdrawal}`
-      });
-      
-    return true;
-  } catch (error) {
-    console.error("Error in updateSystemSettings:", error);
-    return false;
-  }
-};
-
-// Function to check if user has enough real coins for withdrawal
-export const hasEnoughRealCoins = async (userId: string, amount: number): Promise<boolean> => {
-  try {
-    // Get all transactions for the user
-    const { data, error } = await supabase
-      .from('transactions')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('is_real_coins', true)
-      .eq('status', 'completed');
-      
-    if (error) {
-      console.error("Error fetching transactions:", error);
-      return false;
-    }
-    
-    // Calculate real coins balance
-    let realCoinsBalance = 0;
-    data?.forEach(transaction => {
-      realCoinsBalance += (transaction.amount || 0);
-    });
-    
-    return realCoinsBalance >= amount;
-  } catch (error) {
-    console.error("Error checking real coins:", error);
-    return false;
-  }
-};
-
-// Function to set a user as admin
-export const setUserAsAdmin = async (
-  userEmail: string,
-  adminId: string
-): Promise<boolean> => {
-  try {
-    // Get user by email
-    const { data: userData, error: userError } = await supabase.auth.admin.listUsers();
-    
-    if (userError) {
-      console.error("Error fetching users:", userError);
-      toast.error("Failed to find user");
-      return false;
-    }
-    
-    const user = userData?.users?.find(u => u.email?.toLowerCase() === userEmail.toLowerCase());
-    
-    if (!user) {
-      toast.error("User not found with that email");
-      return false;
-    }
-    
-    // Check if user already has a role
-    const { data: existingRole } = await supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', user.id)
-      .maybeSingle();
-      
-    if (existingRole?.role === 'admin') {
-      toast.error("User is already an admin");
-      return false;
-    }
-    
-    if (existingRole?.role === 'superadmin') {
-      toast.error("User is already a superadmin");
-      return false;
-    }
-    
-    // Set user as admin
-    const { error: roleError } = await supabase
-      .from('user_roles')
-      .insert({
-        user_id: user.id,
-        role: 'admin'
-      });
-      
-    if (roleError) {
-      console.error("Error setting user as admin:", roleError);
-      toast.error("Failed to set user as admin");
-      return false;
-    }
-    
-    // Log the action
-    await supabase
-      .from('system_logs')
-      .insert({
-        admin_id: adminId,
-        action: 'Admin Created',
-        details: `Set user ${userEmail} as admin`
-      });
-      
-    toast.success(`Successfully set ${userEmail} as admin`);
-    return true;
-  } catch (error) {
-    console.error("Error in setUserAsAdmin:", error);
-    toast.error("An unexpected error occurred");
-    return false;
-  }
-};
-
-// Function to get user withdrawal count
-export const getUserWithdrawalCount = async (userId: string): Promise<number> => {
-  try {
-    const { data, error } = await supabase
-      .from('withdrawals')
-      .select('id')
-      .eq('user_id', userId)
-      .eq('status', 'completed');
-      
-    if (error) {
-      console.error("Error fetching withdrawals:", error);
-      return 0;
-    }
-    
-    return data?.length || 0;
-  } catch (error) {
-    console.error("Error getting withdrawal count:", error);
-    return 0;
-  }
-};
-
-// Function to calculate withdrawal amount based on coin amount
-export const calculateWithdrawalAmount = (coins: number): number => {
-  return Math.floor(coins / 10);
-};
-
-// Function to calculate withdrawal payout based on user history
-export const calculateWithdrawalPayout = (coins: number, isFirstFive: boolean): number => {
-  // Get base amount
-  const baseAmount = calculateWithdrawalAmount(coins);
-  
-  // For first 5 withdrawals, add 20% bonus
-  return isFirstFive ? Math.floor(baseAmount * 1.2) : baseAmount;
-};
-
-// Define withdrawal tiers with minimum coins required and corresponding rupee amounts
-export const WITHDRAWAL_TIERS = [
-  { coins: 100, amount: 10, firstFivePayoutInr: 12, regularPayoutInr: 10 },
-  { coins: 200, amount: 20, firstFivePayoutInr: 25, regularPayoutInr: 20 },
-  { coins: 500, amount: 50, firstFivePayoutInr: 60, regularPayoutInr: 50 },
-  { coins: 1000, amount: 100, firstFivePayoutInr: 120, regularPayoutInr: 100 },
-  { coins: 2000, amount: 200, firstFivePayoutInr: 240, regularPayoutInr: 200 },
-  { coins: 5000, amount: 500, firstFivePayoutInr: 600, regularPayoutInr: 500 }
-];
-
-// Get the next available withdrawal tier based on user's balance
-export const getNextWithdrawalTier = (balance: number) => {
-  const eligibleTiers = WITHDRAWAL_TIERS.filter(tier => tier.coins <= balance);
-  return eligibleTiers.length > 0 ? eligibleTiers[eligibleTiers.length - 1] : null;
-};
-
-// Function to get user transactions
 export const getUserTransactions = async (userId: string): Promise<Transaction[]> => {
   try {
     const { data, error } = await supabase
       .from('transactions')
       .select('*')
       .eq('user_id', userId)
-      .order('created_at', { ascending: false });
-    
+      .order('date', { ascending: false });
+      
     if (error) {
       console.error("Error fetching transactions:", error);
-      throw new Error(error.message);
+      return [];
     }
-
-    // Get user email
-    let userEmail = "";
-    try {
-      const { data: userData, error: userError } = await supabase
-        .from('profiles')
-        .select('email')
-        .eq('id', userId)
-        .single();
-      
-      if (!userError && userData) {
-        userEmail = userData.email || "";
-      }
-    } catch (e) {
-      console.error("Error fetching user email:", e);
-    }
-
-    return data.map(tx => ({
-      ...tx,
-      user_email: userEmail
-    }));
+    
+    return data as Transaction[];
   } catch (error) {
     console.error("Error in getUserTransactions:", error);
-    throw error;
+    return [];
   }
 };
 
-// Function to process transaction for admin
-export const processTransactionForAdmin = async (user: UserSearchResult, amount: number, type: TransactionType, description: string) => {
+export const getTransactionById = async (transactionId: string): Promise<Transaction | null> => {
   try {
-    if (!user || !user.id) {
-      throw new Error("Invalid user data");
-    }
-    
-    // Handle email property safely, making sure it exists
-    const userEmail = user.email || "No email provided";
-    
-    // Create a transaction
     const { data, error } = await supabase
       .from('transactions')
-      .insert([
-        {
-          user_id: user.id,
-          amount,
-          type,
-          description: `${description} - Admin action for ${userEmail}`,
-          status: 'completed'
-        }
-      ])
-      .select()
+      .select('*')
+      .eq('id', transactionId)
       .single();
-    
+      
     if (error) {
-      console.error("Error creating transaction:", error);
-      throw new Error(error.message);
+      return null;
     }
     
-    toast.success(`Transaction processed successfully for ${userEmail}`);
-    return data;
-  } catch (error: any) {
-    console.error("Error in processTransaction:", error);
-    toast.error(error.message || "Failed to process transaction");
-    throw error;
+    return data as Transaction;
+  } catch (error) {
+    return null;
+  }
+};
+
+// Add a transaction to the database
+export const addTransaction = async (transaction: Omit<Transaction, 'id'>): Promise<string | null> => {
+  try {
+    const { data, error } = await supabase
+      .from('transactions')
+      .insert({
+        user_id: transaction.user_id,
+        type: transaction.type,
+        amount: transaction.amount,
+        status: transaction.status || 'completed',
+        date: transaction.date || new Date().toISOString().split('T')[0],
+        match_id: transaction.match_id,
+        notes: transaction.notes,
+        admin_id: transaction.admin_id,
+        is_real_coins: transaction.is_real_coins !== undefined ? transaction.is_real_coins : true
+      })
+      .select('id')
+      .single();
+      
+    if (error) {
+      console.error("Error adding transaction:", error);
+      return null;
+    }
+    
+    return data.id;
+  } catch (error) {
+    console.error("Error in addTransaction:", error);
+    return null;
+  }
+};
+
+// Get user's wallet balance
+export const getUserWalletBalance = async (userId: string): Promise<number> => {
+  try {
+    const { data, error } = await supabase
+      .from('transactions')
+      .select('amount')
+      .eq('user_id', userId)
+      .eq('status', 'completed');
+      
+    if (error) {
+      console.error("Error fetching wallet balance:", error);
+      return 0;
+    }
+    
+    return data.reduce((sum, tx) => sum + (tx.amount || 0), 0);
+  } catch (error) {
+    console.error("Error in getUserWalletBalance:", error);
+    return 0;
+  }
+};
+
+// Create a topup request
+export const createTopUpRequest = async (
+  userId: string, 
+  amount: number, 
+  method: string, 
+  transactionId: string
+): Promise<boolean> => {
+  try {
+    const { error } = await supabase
+      .from('transactions')
+      .insert({
+        user_id: userId,
+        type: 'topup',
+        amount: amount,
+        status: 'pending',
+        date: new Date().toISOString().split('T')[0],
+        notes: `Top-up via ${method}. Transaction ID: ${transactionId}`
+      });
+      
+    if (error) {
+      console.error("Error creating top-up request:", error);
+      return false;
+    }
+    
+    return true;
+  } catch (error) {
+    console.error("Error in createTopUpRequest:", error);
+    return false;
+  }
+};
+
+// Create a withdrawal request
+export const createWithdrawalRequest = async (
+  userId: string, 
+  amount: number, 
+  paymentMethod: string, 
+  payoutDetails: string
+): Promise<boolean> => {
+  try {
+    if (amount <= 0) {
+      toast.error("Withdrawal amount must be greater than 0");
+      return false;
+    }
+    
+    // First check if the user has enough balance
+    const balance = await getUserWalletBalance(userId);
+    if (balance < amount) {
+      toast.error("Insufficient balance");
+      return false;
+    }
+    
+    // Check if there's already a pending withdrawal
+    const { data: pendingWithdrawals, error: pendingError } = await supabase
+      .from('transactions')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('type', 'withdrawal')
+      .eq('status', 'pending');
+      
+    if (pendingError) {
+      console.error("Error checking pending withdrawals:", pendingError);
+      toast.error("Failed to process withdrawal");
+      return false;
+    }
+    
+    if (pendingWithdrawals && pendingWithdrawals.length > 0) {
+      toast.error("You already have a pending withdrawal request");
+      return false;
+    }
+    
+    // Create the withdrawal transaction
+    const { error: withdrawalError } = await supabase
+      .from('transactions')
+      .insert({
+        user_id: userId,
+        type: 'withdrawal',
+        amount: -amount, // Use negative amount for withdrawals
+        status: 'pending',
+        date: new Date().toISOString().split('T')[0],
+        notes: `Withdrawal to ${paymentMethod}. ${payoutDetails}`
+      });
+      
+    if (withdrawalError) {
+      console.error("Error creating withdrawal:", withdrawalError);
+      toast.error("Failed to create withdrawal request");
+      return false;
+    }
+    
+    // Add record to withdrawals table
+    const { error: withdrawalsError } = await supabase
+      .from('withdrawals')
+      .insert({
+        user_id: userId,
+        amount: amount,
+        status: 'pending',
+        created_at: new Date().toISOString()
+      });
+      
+    // This error is not critical, so we don't show it to the user
+    if (withdrawalsError && withdrawalsError.code !== 'PGRST116') {
+      console.error("Error adding withdrawal record:", withdrawalsError);
+    }
+    
+    toast.success("Withdrawal request submitted successfully");
+    return true;
+  } catch (error) {
+    console.error("Error in createWithdrawalRequest:", error);
+    toast.error("An unexpected error occurred");
+    return false;
+  }
+};
+
+// Get user info - name, email for display
+export const getUserInfo = async (userId: string): Promise<{ name?: string, email?: string }> => {
+  try {
+    // First try to get from auth
+    const { data: userData, error: userError } = await supabase.auth.admin.getUserById(userId);
+    
+    if (!userError && userData?.user) {
+      return {
+        name: userData.user.user_metadata?.name,
+        email: userData.user.email
+      };
+    }
+    
+    // If that fails, check if we have a profile with this ID
+    const { data: profileData, error: profileError } = await supabase
+      .from('user_roles') // Using user_roles as a fallback - no profiles table
+      .select('user_id')
+      .eq('user_id', userId)
+      .single();
+      
+    if (!profileError && profileData) {
+      return {
+        name: 'User ' + userId.substring(0, 6)
+      };
+    }
+    
+    return {};
+  } catch (error) {
+    console.error("Error in getUserInfo:", error);
+    return {};
   }
 };
