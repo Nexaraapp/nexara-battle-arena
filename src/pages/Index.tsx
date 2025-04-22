@@ -1,59 +1,132 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Gamepad, Trophy, Star, ArrowRight } from "lucide-react";
+import { Gamepad, Trophy, Star, ArrowRight, Loader } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { supabase } from "@/integrations/supabase/client";
+import { Match, joinMatch } from "@/utils/matchUtils";
+import { toast } from "sonner";
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState("battle-royale");
+  const [matches, setMatches] = useState<Match[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [stats, setStats] = useState({
+    activeTournaments: 0,
+    playersOnline: 0,
+    prizePool: 0,
+    gamesAvailable: 2 // Hardcoded since we have fixed game modes
+  });
+  const [userId, setUserId] = useState<string | null>(null);
   
-  const upcomingMatches = [
-    {
-      id: 1,
-      type: "battle-royale",
-      name: "Battle Royale #124",
-      time: "17:30 Today",
-      entryFee: 45,
-      prizePool: 480,
-      players: "48/48",
-      status: "full"
-    },
-    {
-      id: 2,
-      type: "battle-royale",
-      name: "Battle Royale #125",
-      time: "19:00 Today",
-      entryFee: 40,
-      prizePool: 420,
-      players: "32/48",
-      status: "joinable"
-    },
-    {
-      id: 3,
-      type: "clash-squad",
-      name: "Clash Squad Solo #87",
-      time: "18:15 Today",
-      entryFee: 25,
-      prizePool: 45,
-      players: "1/2",
-      status: "joinable"
-    },
-    {
-      id: 4,
-      type: "clash-squad",
-      name: "Clash Squad Duo #42",
-      time: "20:30 Today",
-      entryFee: 55,
-      prizePool: 90,
-      players: "2/4",
-      status: "joinable"
-    },
-  ];
-
-  const filteredMatches = upcomingMatches.filter(match => 
-    activeTab === "all" || match.type.includes(activeTab)
+  useEffect(() => {
+    // Check authentication status
+    const checkAuth = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (data.session?.user) {
+        setUserId(data.session.user.id);
+      }
+    };
+    
+    checkAuth();
+    fetchMatches();
+    fetchStats();
+    
+    // Set up real-time listener for matches
+    const channel = supabase
+      .channel('public:matches')
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'matches' },
+        () => {
+          fetchMatches();
+          fetchStats();
+        }
+      )
+      .subscribe();
+      
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+  
+  const fetchMatches = async () => {
+    setIsLoading(true);
+    try {
+      // Fetch upcoming matches that are not full yet
+      const { data, error } = await supabase
+        .from('matches')
+        .select('*')
+        .in('status', ['upcoming', 'active'])
+        .order('created_at', { ascending: false })
+        .limit(4);
+        
+      if (error) {
+        console.error("Error fetching matches:", error);
+        toast.error("Failed to load matches");
+        setMatches([]);
+      } else {
+        setMatches(data || []);
+      }
+    } catch (error) {
+      console.error("Error in fetchMatches:", error);
+      setMatches([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  const fetchStats = async () => {
+    try {
+      // Count active tournaments
+      const { count: activeTournaments, error: tournamentsError } = await supabase
+        .from('matches')
+        .select('id', { count: 'exact' })
+        .in('status', ['upcoming', 'active']);
+        
+      // Calculating prize pool (sum of prizes for all upcoming/active matches)
+      const { data: prizeData, error: prizeError } = await supabase
+        .from('matches')
+        .select('prize')
+        .in('status', ['upcoming', 'active']);
+      
+      // For a real app, this would be a call to a presence service
+      // For now we'll estimate based on recent activity
+      const { count: recentlyActive, error: activeError } = await supabase
+        .from('match_entries')
+        .select('user_id', { count: 'exact', head: true })
+        .gte('created_at', new Date(Date.now() - 30 * 60 * 1000).toISOString());
+      
+      if (!tournamentsError && !prizeError && !activeError) {
+        const totalPrizePool = (prizeData || []).reduce((sum, match) => sum + (match.prize || 0), 0);
+        
+        setStats({
+          activeTournaments: activeTournaments || 0,
+          playersOnline: recentlyActive || 0,
+          prizePool: totalPrizePool,
+          gamesAvailable: 2
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching stats:", error);
+    }
+  };
+  
+  const handleJoinMatch = async (matchId: string) => {
+    if (!userId) {
+      toast.error("Please log in to join a match");
+      return;
+    }
+    
+    const success = await joinMatch(matchId, userId);
+    if (success) {
+      fetchMatches(); // Refresh matches after joining
+    }
+  };
+  
+  const filteredMatches = matches.filter(match => 
+    activeTab === "all" || match.type.toLowerCase().includes(activeTab)
   );
 
   return (
@@ -78,7 +151,7 @@ const Index = () => {
           <div className="text-nexara-accent mb-2">
             <Trophy size={24} className="mx-auto" />
           </div>
-          <div className="text-2xl font-bold">24</div>
+          <div className="text-2xl font-bold">{stats.activeTournaments}</div>
           <div className="text-xs text-gray-400">Active Tournaments</div>
         </div>
         
@@ -86,7 +159,7 @@ const Index = () => {
           <div className="text-nexara-highlight mb-2">
             <Gamepad size={24} className="mx-auto" />
           </div>
-          <div className="text-2xl font-bold">127</div>
+          <div className="text-2xl font-bold">{stats.playersOnline}</div>
           <div className="text-xs text-gray-400">Players Online</div>
         </div>
         
@@ -94,7 +167,7 @@ const Index = () => {
           <div className="text-nexara-warning mb-2">
             <Star size={24} className="mx-auto" />
           </div>
-          <div className="text-2xl font-bold">₹12,450</div>
+          <div className="text-2xl font-bold">₹{stats.prizePool}</div>
           <div className="text-xs text-gray-400">Prize Pool Today</div>
         </div>
         
@@ -102,7 +175,7 @@ const Index = () => {
           <div className="text-nexara-info mb-2">
             <Gamepad size={24} className="mx-auto" />
           </div>
-          <div className="text-2xl font-bold">2</div>
+          <div className="text-2xl font-bold">{stats.gamesAvailable}</div>
           <div className="text-xs text-gray-400">Games Available</div>
         </div>
       </section>
@@ -127,51 +200,78 @@ const Index = () => {
           </TabsList>
           
           <TabsContent value={activeTab} className="mt-0">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {filteredMatches.map((match) => (
-                <Card key={match.id} className="game-card overflow-hidden">
-                  <CardContent className="p-0">
-                    <div className="flex items-center">
-                      <div className="p-4 flex-1">
-                        <div className="flex items-center justify-between">
-                          <div className="text-sm text-gray-400">{match.time}</div>
-                          <div className={`text-xs px-2 py-1 rounded ${
-                            match.status === 'joinable' 
-                              ? 'bg-green-900/40 text-green-400' 
-                              : 'bg-gray-800/40 text-gray-400'
-                          }`}>
-                            {match.status === 'joinable' ? 'Joinable' : 'Full'}
+            {isLoading ? (
+              <div className="flex justify-center py-16">
+                <Loader className="h-8 w-8 animate-spin text-nexara-accent" />
+              </div>
+            ) : filteredMatches.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {filteredMatches.map((match) => {
+                  const isJoinable = match.slots_filled < match.slots && match.status === 'upcoming';
+                  
+                  return (
+                    <Card key={match.id} className="game-card overflow-hidden">
+                      <CardContent className="p-0">
+                        <div className="flex items-center">
+                          <div className="p-4 flex-1">
+                            <div className="flex items-center justify-between">
+                              <div className="text-sm text-gray-400">
+                                {match.start_time ? new Date(match.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Time TBD'}
+                              </div>
+                              <div className={`text-xs px-2 py-1 rounded ${
+                                isJoinable
+                                  ? 'bg-green-900/40 text-green-400' 
+                                  : 'bg-gray-800/40 text-gray-400'
+                              }`}>
+                                {isJoinable ? 'Joinable' : 'Full'}
+                              </div>
+                            </div>
+                            <h3 className="text-lg font-bold mt-1">
+                              {match.type === 'BattleRoyale' && `Battle Royale`}
+                              {match.type === 'ClashSolo' && `Clash Squad Solo`}
+                              {match.type === 'ClashDuo' && `Clash Squad Duo`}
+                            </h3>
+                            <div className="flex mt-2 text-sm">
+                              <div className="pr-3 border-r border-nexara-accent/30">
+                                <div className="text-gray-400">Entry</div>
+                                <div className="font-semibold">{match.entry_fee} coins</div>
+                              </div>
+                              <div className="px-3 border-r border-nexara-accent/30">
+                                <div className="text-gray-400">Prize</div>
+                                <div className="font-semibold">{match.prize} coins</div>
+                              </div>
+                              <div className="px-3">
+                                <div className="text-gray-400">Players</div>
+                                <div className="font-semibold">{match.slots_filled}/{match.slots}</div>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="h-full flex items-center justify-center p-4">
+                            <Button 
+                              className="game-button h-10 px-3"
+                              disabled={!isJoinable}
+                              onClick={() => isJoinable && handleJoinMatch(match.id)}
+                            >
+                              Join
+                            </Button>
                           </div>
                         </div>
-                        <h3 className="text-lg font-bold mt-1">{match.name}</h3>
-                        <div className="flex mt-2 text-sm">
-                          <div className="pr-3 border-r border-nexara-accent/30">
-                            <div className="text-gray-400">Entry</div>
-                            <div className="font-semibold">{match.entryFee} coins</div>
-                          </div>
-                          <div className="px-3 border-r border-nexara-accent/30">
-                            <div className="text-gray-400">Prize</div>
-                            <div className="font-semibold">{match.prizePool} coins</div>
-                          </div>
-                          <div className="px-3">
-                            <div className="text-gray-400">Players</div>
-                            <div className="font-semibold">{match.players}</div>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="h-full flex items-center justify-center p-4">
-                        <Button 
-                          className="game-button h-10 px-3"
-                          disabled={match.status !== 'joinable'}
-                        >
-                          Join
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            ) : (
+              <Card className="overflow-hidden">
+                <CardContent className="p-8 text-center">
+                  <Trophy className="h-12 w-12 text-nexara-accent mx-auto mb-4 opacity-50" />
+                  <h3 className="text-xl font-bold">No matches available</h3>
+                  <p className="text-gray-400 mt-2">
+                    There are no upcoming matches in this category yet.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
         </Tabs>
       </section>

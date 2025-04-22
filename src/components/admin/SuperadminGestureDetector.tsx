@@ -116,27 +116,40 @@ export const SuperadminGestureDetector = () => {
     setSelectedUser(null);
 
     try {
-      const { data: authData, error: authError } = await supabase.auth.admin.listUsers();
-      
-      if (authError) {
-        console.error("User search error:", authError);
-        toast.error("Failed to search users. Admin API might be restricted.");
-        setIsSearching(false);
-        return;
+      // This is a simplified user search for demo purposes
+      // In a real app, you'd likely use an admin API or create a server function
+      const { data, error } = await supabase
+        .from('user_roles')
+        .select('user_id')
+        .limit(10);
+        
+      if (error) {
+        throw error;
       }
-
-      const filteredUsers = authData.users
-        .filter(user => 
-          user.email?.toLowerCase().includes(searchEmail.toLowerCase())
-        )
-        .map(user => ({
-          id: user.id,
-          email: user.email
-        }));
-
-      setSearchResults(filteredUsers);
       
-      if (filteredUsers.length === 0) {
+      const userIds = data.map(role => role.user_id);
+      
+      // For each user ID, get their email from auth
+      const users: SearchUser[] = [];
+      
+      for (const id of userIds) {
+        try {
+          const { data: authUserData } = await supabase.auth.admin.getUserById(id);
+          if (authUserData?.user?.email?.toLowerCase().includes(searchEmail.toLowerCase())) {
+            users.push({
+              id: id,
+              email: authUserData.user.email
+            });
+          }
+        } catch (e) {
+          console.error("Error fetching user:", e);
+          // Skip this user
+        }
+      }
+      
+      setSearchResults(users);
+      
+      if (users.length === 0) {
         toast.error("No users found with that email");
       }
     } catch (error: any) {
@@ -148,7 +161,9 @@ export const SuperadminGestureDetector = () => {
   };
 
   const selectUser = (user: SearchUser) => {
-    setSelectedUser(user);
+    if (user && user.id) {
+      setSelectedUser(user);
+    }
   };
 
   const handleAssignCoins = async () => {

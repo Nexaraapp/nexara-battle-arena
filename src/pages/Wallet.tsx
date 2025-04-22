@@ -1,607 +1,434 @@
-import React, { useState, useEffect } from "react";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
-import { Wallet as WalletIcon, ArrowDown, ArrowUp, Clock, Eye, File, Loader2 } from "lucide-react";
-import { toast } from "sonner";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { supabase } from "@/integrations/supabase/client";
-import { useNavigate } from "react-router-dom";
-import { Transaction, getUserTransactions, getUserWalletBalance } from "@/utils/transactionUtils";
 
-interface CoinPackage {
-  id: number;
-  coins: number;
-  amount: string;
-  popular: boolean;
-}
+import React, { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { CurrencyRupee, Loader, CircleArrowUp, CircleArrowDown } from "lucide-react";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { formatDistanceToNow } from "date-fns";
 
 const Wallet = () => {
-  const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState("overview");
-  const [showAdDialog, setShowAdDialog] = useState(false);
-  const [withdrawAmount, setWithdrawAmount] = useState("");
-  const [walletBalance, setWalletBalance] = useState(0);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [user, setUser] = useState<any>(null);
-  const [showWelcomeDialog, setShowWelcomeDialog] = useState(false);
+  const [balance, setBalance] = useState(0);
+  const [withdrawalAmount, setWithdrawalAmount] = useState("");
+  const [topupAmount, setTopupAmount] = useState("");
+  const [utrNumber, setUtrNumber] = useState("");
+  const [isLoadingBalance, setIsLoadingBalance] = useState(true);
+  const [isProcessingWithdrawal, setIsProcessingWithdrawal] = useState(false);
+  const [isProcessingTopup, setIsProcessingTopup] = useState(false);
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState("balance");
+  const [withdrawalMsg, setWithdrawalMsg] = useState("");
   
-  const coinPackages: CoinPackage[] = [
-    { id: 1, coins: 20, amount: "₹20", popular: false },
-    { id: 2, coins: 60, amount: "₹50", popular: true },
-    { id: 3, coins: 120, amount: "₹100", popular: false },
-    { id: 4, coins: 300, amount: "₹250", popular: false },
-  ];
-
+  // QR code image for payments
+  const qrCodeUrl = "/lovable-uploads/50e5f998-8ecf-493d-aded-3c24db032cf0.png";
+  
   useEffect(() => {
-    const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        toast.error("Please login to access your wallet");
-        navigate("/login");
-        return;
-      }
-      
-      setUser(session.user);
-      fetchWalletData(session.user.id);
-      
-      const firstTimeUserKey = `welcome_shown_${session.user.id}`;
-      if (!localStorage.getItem(firstTimeUserKey)) {
-        setShowWelcomeDialog(true);
-        localStorage.setItem(firstTimeUserKey, 'true');
-      }
-    };
-
-    const fetchWalletData = async (userId: string) => {
-      try {
-        setIsLoading(true);
-        
-        const userBalance = await getUserWalletBalance(userId);
-        const userTransactions = await getUserTransactions(userId);
-        
-        setWalletBalance(userBalance);
-        setTransactions(userTransactions);
-      } catch (error: any) {
-        console.error("Error fetching wallet data:", error);
-        toast.error("Failed to load wallet data");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    checkAuth();
-
-    return () => {
-      // Cleanup if needed
-    };
-  }, [navigate]);
-
-  const handleWatchAd = async () => {
-    setShowAdDialog(false);
+    fetchWalletData();
     
-    try {
-      const coinReward = 1;
-      
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        toast.error("You must be logged in to earn coins");
-        return;
-      }
-      
-      const { data, error } = await supabase
-        .from('transactions')
-        .insert({
-          user_id: session.user.id,
-          type: "ad_reward",
-          amount: coinReward,
-          status: "completed"
-        })
-        .select();
-      
-      if (error) {
-        throw error;
-      }
-      
-      const newTransaction: Transaction = {
-        id: data[0].id,
-        user_id: session.user.id,
-        type: "ad_reward",
-        amount: coinReward,
-        date: data[0].date,
-        status: "completed"
-      };
-      
-      setWalletBalance((prev) => prev + coinReward);
-      setTransactions(prev => [newTransaction, ...prev]);
-      
-      toast.success("Thanks for watching! 1 coin added to your wallet.");
-    } catch (error: any) {
-      console.error("Error adding ad reward:", error);
-      toast.error("Failed to add coins. Please try again later.");
-    }
-  };
-
-  const handleBuyCoinPack = async (packageId: number) => {
-    const selectedPackage = coinPackages.find(pkg => pkg.id === packageId);
-    if (selectedPackage) {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) {
-          toast.error("You must be logged in to buy coins");
-          return;
+    // Set up real-time listener for transactions
+    const channel = supabase
+      .channel('wallet-changes')
+      .on('postgres_changes', 
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'transactions',
+          filter: `user_id=eq.${getCurrentUserId()}` 
+        }, 
+        () => {
+          fetchWalletData();
         }
-        
-        toast.success(`Redirecting to payment for ${selectedPackage.coins} coins`);
-        
-        setTimeout(async () => {
-          try {
-            const { data, error } = await supabase
-              .from('transactions')
-              .insert({
-                user_id: session.user.id,
-                type: "topup",
-                amount: selectedPackage.coins,
-                status: "pending"
-              })
-              .select();
-            
-            if (error) {
-              throw error;
-            }
-            
-            const newTransaction: Transaction = {
-              id: data[0].id,
-              user_id: session.user.id,
-              type: "topup",
-              amount: selectedPackage.coins,
-              date: data[0].date,
-              status: "pending"
-            };
-            
-            setTransactions(prev => [newTransaction, ...prev]);
-            toast.success(`Top-up request submitted. Coins will be added after admin approval.`);
-          } catch (error: any) {
-            console.error("Error recording top-up transaction:", error);
-            toast.error("Failed to submit top-up. Please try again later.");
-          }
-        }, 1500);
-      } catch (error: any) {
-        console.error("Error handling coin pack purchase:", error);
-        toast.error("Failed to process purchase. Please try again later.");
-      }
-    }
+      )
+      .subscribe();
+      
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+  
+  const getCurrentUserId = () => {
+    const { data } = supabase.auth.getSession();
+    return data?.session?.user?.id;
   };
 
-  const handleWithdrawSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const amount = parseInt(withdrawAmount);
-    
-    if (isNaN(amount) || amount < 50) {
-      toast.error("Minimum withdrawal is 50 coins");
-      return;
-    }
-    
-    if (amount > walletBalance) {
-      toast.error("Insufficient balance");
-      return;
-    }
+  const fetchWalletData = async () => {
+    setIsLoadingBalance(true);
     
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
-        toast.error("You must be logged in to withdraw coins");
+        toast.error("Please log in to access your wallet");
+        setIsLoadingBalance(false);
         return;
       }
       
-      const { data, error } = await supabase
-        .from('transactions')
-        .insert({
-          user_id: session.user.id,
-          type: "withdrawal",
-          amount: -amount,
-          status: "pending"
-        })
-        .select();
+      const userId = session.user.id;
       
-      if (error) {
-        throw error;
+      // Get transactions
+      const { data: transactionsData, error: transactionsError } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('user_id', userId)
+        .order('date', { ascending: false });
+        
+      if (transactionsError) {
+        console.error("Error fetching transactions:", transactionsError);
+        toast.error("Failed to load transaction history");
+      } else {
+        setTransactions(transactionsData || []);
       }
       
-      const newTransaction: Transaction = {
-        id: data[0].id,
-        user_id: session.user.id,
-        type: "withdrawal",
-        amount: -amount,
-        date: data[0].date,
-        status: "pending"
-      };
+      // Calculate balance from transactions
+      let calculatedBalance = 0;
+      if (transactionsData) {
+        calculatedBalance = transactionsData.reduce((total, tx) => {
+          return total + (tx.amount || 0);
+        }, 0);
+      }
       
-      setTransactions(prev => [newTransaction, ...prev]);
-      toast.success(`Withdrawal request for ${amount} coins submitted. Upload payment QR.`);
-      setWithdrawAmount("");
-    } catch (error: any) {
-      console.error("Error submitting withdrawal:", error);
-      toast.error("Failed to submit withdrawal. Please try again later.");
+      setBalance(calculatedBalance);
+    } catch (error) {
+      console.error("Error fetching wallet data:", error);
+      toast.error("Failed to load wallet data");
+    } finally {
+      setIsLoadingBalance(false);
     }
   };
   
-  if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh]">
-        <Loader2 className="h-10 w-10 animate-spin text-nexara-accent" />
-        <p className="mt-4 text-gray-400">Loading wallet data...</p>
-      </div>
-    );
-  }
-
+  const handleTopupRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    const topupAmountInt = parseInt(topupAmount);
+    if (isNaN(topupAmountInt) || topupAmountInt <= 0) {
+      toast.error("Please enter a valid amount");
+      return;
+    }
+    
+    if (!utrNumber) {
+      toast.error("Please enter UTR number for verification");
+      return;
+    }
+    
+    setIsProcessingTopup(true);
+    
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error("Please log in to request a top-up");
+        setIsProcessingTopup(false);
+        return;
+      }
+      
+      // Create a pending transaction
+      const { error } = await supabase
+        .from('transactions')
+        .insert({
+          user_id: session.user.id,
+          type: 'topup_request',
+          amount: topupAmountInt, // This will be added to balance upon admin approval
+          status: 'pending',
+          date: new Date().toISOString().split('T')[0],
+          notes: `Topup request. UTR: ${utrNumber}`
+        });
+        
+      if (error) {
+        console.error("Error creating top-up request:", error);
+        throw new Error("Failed to create top-up request");
+      }
+      
+      toast.success("Top-up request submitted. It will be processed by an admin soon.");
+      setTopupAmount("");
+      setUtrNumber("");
+      setActiveTab("balance");
+    } catch (error: any) {
+      console.error("Error processing top-up request:", error);
+      toast.error(error.message || "Failed to process top-up request");
+    } finally {
+      setIsProcessingTopup(false);
+    }
+  };
+  
+  const handleWithdrawalRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    const withdrawalAmountInt = parseInt(withdrawalAmount);
+    if (isNaN(withdrawalAmountInt) || withdrawalAmountInt <= 0) {
+      toast.error("Please enter a valid amount");
+      return;
+    }
+    
+    if (withdrawalAmountInt > balance) {
+      toast.error("Insufficient balance for this withdrawal");
+      return;
+    }
+    
+    if (!withdrawalMsg) {
+      toast.error("Please enter your UPI ID for payment");
+      return;
+    }
+    
+    setIsProcessingWithdrawal(true);
+    
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error("Please log in to request a withdrawal");
+        setIsProcessingWithdrawal(false);
+        return;
+      }
+      
+      // Create withdrawal request record
+      const { error: withdrawalError } = await supabase
+        .from('withdrawals')
+        .insert({
+          user_id: session.user.id,
+          amount: withdrawalAmountInt,
+          status: 'pending',
+          created_at: new Date().toISOString()
+        });
+        
+      if (withdrawalError) {
+        console.error("Error creating withdrawal request:", withdrawalError);
+        throw new Error("Failed to create withdrawal request");
+      }
+      
+      // Create a pending transaction (will be completed upon admin approval)
+      const { error: transactionError } = await supabase
+        .from('transactions')
+        .insert({
+          user_id: session.user.id,
+          type: 'withdrawal_request',
+          amount: -withdrawalAmountInt, // Negative as it's a deduction
+          status: 'pending',
+          date: new Date().toISOString().split('T')[0],
+          notes: `Withdrawal request. UPI: ${withdrawalMsg}`
+        });
+        
+      if (transactionError) {
+        console.error("Error creating withdrawal transaction:", transactionError);
+        throw new Error("Failed to record withdrawal request");
+      }
+      
+      toast.success("Withdrawal request submitted. It will be processed by an admin soon.");
+      setWithdrawalAmount("");
+      setWithdrawalMsg("");
+      setActiveTab("balance");
+    } catch (error: any) {
+      console.error("Error processing withdrawal:", error);
+      toast.error(error.message || "Failed to process withdrawal request");
+    } finally {
+      setIsProcessingWithdrawal(false);
+    }
+  };
+  
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-bold">Wallet</h1>
-        <p className="text-gray-400">Manage your game coins and transactions</p>
-      </header>
-
-      <Card className="neon-border">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-center text-2xl">Your Balance</CardTitle>
-        </CardHeader>
-        <CardContent className="text-center">
-          <div className="flex justify-center mb-4">
-            <div className="w-16 h-16 rounded-full bg-nexara-accent/20 flex items-center justify-center">
-              <WalletIcon size={32} className="text-nexara-accent" />
-            </div>
-          </div>
-          <div className="text-4xl font-bold mb-2">{walletBalance} coins</div>
-          <div className="flex justify-center gap-3 mt-4">
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button className="game-button">
-                  <ArrowUp className="mr-2 h-4 w-4" />
-                  Top Up
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="bg-nexara-bg border-nexara-accent neon-border">
-                <DialogHeader>
-                  <DialogTitle className="text-nexara-accent">Buy Coins</DialogTitle>
-                  <DialogDescription className="text-gray-400">
-                    Choose a coin package to purchase
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="grid grid-cols-2 gap-4 py-4">
-                  {coinPackages.map((pkg) => (
-                    <Card 
-                      key={pkg.id}
-                      className={`relative overflow-hidden cursor-pointer transition-all hover:scale-105 ${
-                        pkg.popular ? 'neon-border' : 'border-gray-700'
-                      }`}
-                      onClick={() => handleBuyCoinPack(pkg.id)}
-                    >
-                      {pkg.popular && (
-                        <div className="absolute top-0 right-0 bg-nexara-accent text-white text-xs px-2 py-1">
-                          Popular
-                        </div>
-                      )}
-                      <CardContent className="p-4 text-center">
-                        <div className="text-2xl font-bold mb-1">{pkg.coins}</div>
-                        <div className="text-gray-400 text-sm">Coins</div>
-                        <div className="mt-2 font-semibold">{pkg.amount}</div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-                <div className="text-center">
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <Button variant="outline" className="border-nexara-accent/20 w-full">
-                        <File className="mr-2 h-4 w-4" />
-                        Upload Payment QR
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="bg-nexara-bg border-nexara-accent">
-                      <DialogHeader>
-                        <DialogTitle>Upload Payment QR Code</DialogTitle>
-                        <DialogDescription>
-                          Upload a screenshot of your payment QR code
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="py-4">
-                        <Input
-                          type="file"
-                          className="bg-muted border-nexara-accent/30"
-                        />
-                        <p className="text-xs text-gray-400 mt-2">
-                          Upload a screenshot of your payment QR code. Our team will verify and add coins to your account.
-                        </p>
-                      </div>
-                      <Button className="w-full game-button">
-                        Upload & Submit
-                      </Button>
-                    </DialogContent>
-                  </Dialog>
-                </div>
-              </DialogContent>
-            </Dialog>
-            
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button variant="outline" className="border-nexara-accent/20">
-                  <ArrowDown className="mr-2 h-4 w-4" />
-                  Withdraw
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="bg-nexara-bg border-nexara-accent neon-border">
-                <DialogHeader>
-                  <DialogTitle className="text-nexara-accent">Withdraw Coins</DialogTitle>
-                  <DialogDescription>
-                    Enter the amount you want to withdraw
-                  </DialogDescription>
-                </DialogHeader>
-                <form onSubmit={handleWithdrawSubmit} className="space-y-4 py-4">
-                  <div>
-                    <Input
-                      type="number"
-                      placeholder="Amount (minimum 50 coins)"
-                      className="bg-muted border-nexara-accent/30"
-                      value={withdrawAmount}
-                      onChange={(e) => setWithdrawAmount(e.target.value)}
-                    />
-                    <p className="text-xs text-gray-400 mt-1">
-                      You can withdraw coins at a rate of ₹1 per coin.
-                    </p>
-                  </div>
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <Button className="w-full game-button">
-                        Submit Withdrawal
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="bg-nexara-bg border-nexara-accent">
-                      <DialogHeader>
-                        <DialogTitle>Upload Payment QR Code</DialogTitle>
-                        <DialogDescription>
-                          Provide your payment details to receive funds
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="py-4">
-                        <Input
-                          type="file"
-                          className="bg-muted border-nexara-accent/30"
-                        />
-                        <p className="text-xs text-gray-400 mt-2">
-                          Upload your payment QR code for receiving the withdrawal amount.
-                        </p>
-                      </div>
-                      <Button className="w-full game-button">
-                        Upload & Confirm
-                      </Button>
-                    </DialogContent>
-                  </Dialog>
-                </form>
-              </DialogContent>
-            </Dialog>
-          </div>
-          
-          <Button 
-            variant="ghost" 
-            className="mt-4 text-sm text-gray-400 hover:text-nexara-accent"
-            onClick={() => setShowAdDialog(true)}
-          >
-            <Eye className="mr-2 h-4 w-4" /> Watch ad for 1 free coin
-          </Button>
-        </CardContent>
-      </Card>
-
-      <Tabs defaultValue="overview" onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-2 bg-muted">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="transactions">Transactions</TabsTrigger>
+      <h1 className="text-2xl font-bold">Wallet</h1>
+      
+      <Tabs defaultValue="balance" value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="grid grid-cols-3">
+          <TabsTrigger value="balance">Balance</TabsTrigger>
+          <TabsTrigger value="topup">Top Up</TabsTrigger>
+          <TabsTrigger value="withdraw">Withdraw</TabsTrigger>
         </TabsList>
-        <TabsContent value="overview" className="space-y-4 mt-4">
+        
+        <TabsContent value="balance" className="space-y-4">
           <Card>
-            <CardHeader className="pb-2">
-              <CardTitle>Stats</CardTitle>
-              <CardDescription>Your wallet activity summary</CardDescription>
+            <CardHeader>
+              <CardTitle>Your Balance</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <p className="text-sm text-gray-500">Total Earned</p>
-                  <p className="text-2xl font-medium">
-                    {transactions
-                      .filter(t => t.amount > 0 && t.status === 'completed')
-                      .reduce((sum, t) => sum + t.amount, 0)} coins
-                  </p>
+            <CardContent className="flex flex-col items-center">
+              {isLoadingBalance ? (
+                <div className="py-8 flex justify-center">
+                  <Loader className="h-8 w-8 animate-spin text-nexara-accent" />
                 </div>
-                <div className="space-y-1">
-                  <p className="text-sm text-gray-500">Total Spent</p>
-                  <p className="text-2xl font-medium">
-                    {Math.abs(transactions
-                      .filter(t => t.amount < 0 && t.type !== "withdrawal" && t.status === 'completed')
-                      .reduce((sum, t) => sum + t.amount, 0))} coins
-                  </p>
+              ) : (
+                <div className="py-8 text-center">
+                  <div className="text-4xl font-bold mb-2">{balance}</div>
+                  <div className="text-gray-400">Coins Available</div>
                 </div>
-                <div className="space-y-1">
-                  <p className="text-sm text-gray-500">Pending Withdrawals</p>
-                  <p className="text-2xl font-medium">
-                    {Math.abs(transactions
-                      .filter(t => t.type === "withdrawal" && t.status === "pending")
-                      .reduce((sum, t) => sum + t.amount, 0))} coins
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-sm text-gray-500">Ad Rewards</p>
-                  <p className="text-2xl font-medium">
-                    {transactions
-                      .filter(t => t.type === "ad_reward" && t.status === 'completed')
-                      .reduce((sum, t) => sum + t.amount, 0)} coins
-                  </p>
-                </div>
-              </div>
+              )}
             </CardContent>
           </Card>
           
+          <h2 className="text-xl font-bold mt-6">Transaction History</h2>
+          
+          {transactions.length > 0 ? (
+            <div className="space-y-3">
+              {transactions.map((transaction) => (
+                <Card key={transaction.id} className="overflow-hidden">
+                  <CardContent className="p-0">
+                    <div className="flex items-center">
+                      <div className={`p-4 ${transaction.amount > 0 ? 'bg-green-900/20' : 'bg-red-900/20'}`}>
+                        {transaction.amount > 0 ? (
+                          <CircleArrowUp className="h-6 w-6 text-green-500" />
+                        ) : (
+                          <CircleArrowDown className="h-6 w-6 text-red-500" />
+                        )}
+                      </div>
+                      <div className="p-4 flex-1">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <div className="font-medium">
+                              {transaction.type === 'match_entry' && 'Match Entry Fee'}
+                              {transaction.type === 'match_reward' && 'Match Reward'}
+                              {transaction.type === 'admin_reward' && 'Admin Bonus'}
+                              {transaction.type === 'topup_request' && 'Top-up Request'}
+                              {transaction.type === 'withdrawal_request' && 'Withdrawal Request'}
+                            </div>
+                            <div className="text-sm text-gray-400">
+                              {transaction.date && (
+                                <>{formatDistanceToNow(new Date(transaction.date))} ago</>
+                              )}
+                            </div>
+                          </div>
+                          <div className={`font-semibold ${transaction.amount > 0 ? 'text-green-500' : 'text-red-500'}`}>
+                            {transaction.amount > 0 ? '+' : ''}{transaction.amount} coins
+                          </div>
+                        </div>
+                        {transaction.notes && (
+                          <div className="text-sm text-gray-400 mt-1">
+                            {transaction.notes}
+                          </div>
+                        )}
+                        {transaction.status === 'pending' && (
+                          <div className="text-sm text-yellow-500 mt-1">
+                            Pending approval
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <Card>
+              <CardContent className="p-6 text-center">
+                <div className="text-gray-400 mb-2">No transactions yet</div>
+                <p>Complete matches or top up your wallet to see your transaction history.</p>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+        
+        <TabsContent value="topup">
           <Card>
-            <CardHeader className="pb-2">
-              <CardTitle>Pending Actions</CardTitle>
+            <CardHeader>
+              <CardTitle>Add Coins to Your Wallet</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-2">
-                {transactions
-                  .filter(t => t.status === "pending")
-                  .map(transaction => (
-                    <div key={transaction.id} className="flex items-center justify-between rounded-lg bg-nexara-accent/10 p-3">
-                      <div className="flex items-center">
-                        <Clock className="h-5 w-5 mr-2 text-nexara-accent" />
-                        <div>
-                          <p className="font-medium capitalize">{transaction.type} Processing</p>
-                          <p className="text-sm text-gray-400">{Math.abs(transaction.amount)} coins - in review</p>
-                        </div>
-                      </div>
-                      <p className="text-sm text-gray-400">Processing</p>
+              <form onSubmit={handleTopupRequest} className="space-y-4">
+                <div>
+                  <Label htmlFor="amount">Amount (in coins)</Label>
+                  <Input
+                    id="amount"
+                    type="number"
+                    value={topupAmount}
+                    onChange={(e) => setTopupAmount(e.target.value)}
+                    placeholder="Enter amount to add"
+                    className="bg-muted"
+                  />
+                </div>
+                
+                <div>
+                  <Label className="block mb-2">Scan QR Code to Pay</Label>
+                  <div className="bg-white p-4 rounded-md mb-4 flex justify-center">
+                    <img
+                      src={qrCodeUrl}
+                      alt="Payment QR Code"
+                      className="max-h-64 object-contain"
+                    />
+                  </div>
+                  <div className="text-center mb-4">
+                    <p className="text-sm text-gray-400 mb-1">Send payment via UPI to this QR code</p>
+                    <div className="flex justify-center items-center gap-1">
+                      <CurrencyRupee className="h-4 w-4" />
+                      <p className="text-nexara-accent font-medium">nexarabf@ybl</p>
                     </div>
-                  ))}
-                {transactions.filter(t => t.status === "pending").length === 0 && (
-                  <p className="text-center text-gray-400 py-4">No pending actions</p>
-                )}
-              </div>
+                  </div>
+                </div>
+                
+                <div>
+                  <Label htmlFor="utr">UTR Number / Reference ID</Label>
+                  <Input
+                    id="utr"
+                    value={utrNumber}
+                    onChange={(e) => setUtrNumber(e.target.value)}
+                    placeholder="Enter payment reference ID"
+                    className="bg-muted"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    Enter the UTR/Reference number from your payment app for verification
+                  </p>
+                </div>
+                
+                <Button 
+                  type="submit"
+                  disabled={isProcessingTopup}
+                  className="w-full game-button"
+                >
+                  {isProcessingTopup ? "Processing..." : "Submit Top-up Request"}
+                </Button>
+              </form>
             </CardContent>
           </Card>
         </TabsContent>
-        <TabsContent value="transactions" className="mt-4">
+        
+        <TabsContent value="withdraw">
           <Card>
-            <CardHeader className="pb-2">
-              <CardTitle>Recent Transactions</CardTitle>
+            <CardHeader>
+              <CardTitle>Withdraw Coins</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {transactions.length > 0 ? (
-                  transactions.map((transaction) => (
-                    <div 
-                      key={transaction.id} 
-                      className="flex items-center justify-between border-b border-gray-800 pb-3 last:border-0 last:pb-0"
-                    >
-                      <div className="flex items-center">
-                        <div className={`
-                          w-10 h-10 rounded-full flex items-center justify-center mr-3
-                          ${transaction.amount > 0 ? 'bg-green-900/20' : 'bg-red-900/20'}
-                        `}>
-                          {transaction.amount > 0 ? (
-                            <ArrowDown className={`h-5 w-5 text-green-500`} />
-                          ) : (
-                            <ArrowUp className={`h-5 w-5 text-red-500`} />
-                          )}
-                        </div>
-                        <div>
-                          <p className="font-medium capitalize">
-                            {transaction.type.replace('_', ' ')}
-                          </p>
-                          <p className="text-sm text-gray-400">
-                            {new Date(transaction.date).toLocaleDateString()}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className={`font-medium ${
-                          transaction.amount > 0 ? 'text-green-500' : 'text-red-400'
-                        }`}>
-                          {transaction.amount > 0 ? '+' : ''}{transaction.amount} coins
-                        </p>
-                        <p className={`text-xs ${
-                          transaction.status === 'completed' 
-                            ? 'text-gray-400' 
-                            : 'text-yellow-500'
-                        }`}>
-                          {transaction.status}
-                        </p>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-center text-gray-400 py-4">No transactions yet</p>
-                )}
-              </div>
+              <form onSubmit={handleWithdrawalRequest} className="space-y-4">
+                <div className="bg-nexara-accent/10 p-4 rounded-md mb-2">
+                  <p className="font-medium">Available Balance: {balance} coins</p>
+                </div>
+                
+                <div>
+                  <Label htmlFor="withdraw-amount">Amount (in coins)</Label>
+                  <Input
+                    id="withdraw-amount"
+                    type="number"
+                    value={withdrawalAmount}
+                    onChange={(e) => setWithdrawalAmount(e.target.value)}
+                    placeholder="Enter amount to withdraw"
+                    className="bg-muted"
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="withdraw-upi">UPI ID for payment</Label>
+                  <Input
+                    id="withdraw-upi"
+                    value={withdrawalMsg}
+                    onChange={(e) => setWithdrawalMsg(e.target.value)}
+                    placeholder="Enter your UPI ID (e.g. name@upi)"
+                    className="bg-muted"
+                  />
+                </div>
+                
+                <Button 
+                  type="submit"
+                  disabled={isProcessingWithdrawal || balance <= 0}
+                  className="w-full game-button"
+                >
+                  {isProcessingWithdrawal ? "Processing..." : "Request Withdrawal"}
+                </Button>
+                
+                <p className="text-xs text-gray-400 text-center">
+                  Withdrawals are processed within 24 hours after admin approval
+                </p>
+              </form>
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
-
-      <Dialog open={showAdDialog} onOpenChange={setShowAdDialog}>
-        <DialogContent className="bg-nexara-bg border-nexara-accent neon-border">
-          <DialogHeader>
-            <DialogTitle className="text-nexara-accent">Watch an Ad</DialogTitle>
-            <DialogDescription>Watch this short ad to earn 1 free coin</DialogDescription>
-          </DialogHeader>
-          <div className="py-8 text-center">
-            <div className="w-full h-40 bg-gray-800 flex items-center justify-center mb-4 flex-col">
-              <p>Ad would appear here</p>
-              <p className="text-gray-500">(Unity Ads integration)</p>
-            </div>
-            <p className="text-sm text-gray-300 mb-4">
-              Watch this ad to earn 1 coin. You can earn up to 10 coins per day from ads.
-            </p>
-            <Button onClick={handleWatchAd} className="game-button">
-              I've Watched the Ad
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={showWelcomeDialog} onOpenChange={setShowWelcomeDialog}>
-        <DialogContent className="bg-nexara-bg border-nexara-accent neon-border max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-nexara-accent">Welcome to Nexara BattleField!</DialogTitle>
-            <DialogDescription>Your journey begins here</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <h3 className="font-medium">Getting Started</h3>
-              <p className="text-sm text-gray-300">
-                Welcome to Nexara BattleField! To get started, you'll need coins to join matches. You can earn coins by:
-              </p>
-              <ul className="text-sm text-gray-300 space-y-1 list-disc pl-5">
-                <li>Watching ads (1 coin per ad)</li>
-                <li>Purchasing coin packages</li>
-                <li>Winning tournaments</li>
-              </ul>
-            </div>
-            <div className="space-y-2">
-              <h3 className="font-medium">Join Matches</h3>
-              <p className="text-sm text-gray-300">
-                Browse available matches and enter tournaments to compete for prizes. Entry fees vary by match type.
-              </p>
-            </div>
-            <div className="space-y-2">
-              <h3 className="font-medium">Need Help?</h3>
-              <p className="text-sm text-gray-300">
-                Visit the profile section for support or check notifications for updates about your matches and withdrawals.
-              </p>
-            </div>
-          </div>
-          <Button onClick={() => setShowWelcomeDialog(false)} className="w-full game-button">
-            Let's Go!
-          </Button>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };

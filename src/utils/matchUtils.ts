@@ -76,14 +76,32 @@ export const joinMatch = async (matchId: string, userId: string): Promise<boolea
       return false;
     }
     
-    // 4. Check if user has enough coins
+    // 4. Check if user has already joined this match
+    const { count, error: countError } = await supabase
+      .from('match_entries')
+      .select('*', { count: 'exact', head: true })
+      .eq('match_id', matchId)
+      .eq('user_id', userId);
+      
+    if (countError) {
+      console.error("Error checking if user already joined:", countError);
+      toast.error("Unable to join match at this time");
+      return false;
+    }
+    
+    if (count && count > 0) {
+      toast.error("You have already joined this match");
+      return false;
+    }
+    
+    // 5. Check if user has enough coins
     const hasBalance = await hasEnoughCoins(userId, match.entry_fee);
     if (!hasBalance) {
       toast.error(`Insufficient balance. You need ${match.entry_fee} coins to join this match.`);
       return false;
     }
     
-    // 5. Create transaction for match entry fee
+    // 6. Create transaction for match entry fee
     const transaction = await createTransaction({
       user_id: userId,
       type: 'match_entry',
@@ -98,7 +116,7 @@ export const joinMatch = async (matchId: string, userId: string): Promise<boolea
       return false;
     }
     
-    // 6. Add user to match participants
+    // 7. Add user to match participants
     const { error: entryError } = await supabase
       .from('match_entries')
       .insert({
@@ -115,7 +133,7 @@ export const joinMatch = async (matchId: string, userId: string): Promise<boolea
       return false;
     }
     
-    // 7. Update match slots_filled
+    // 8. Update match slots_filled
     const { error: updateError } = await supabase
       .from('matches')
       .update({ slots_filled: match.slots_filled + 1 })
@@ -186,16 +204,16 @@ export const updateMatchRoomDetails = async (
     }
     
     // Create admin log
-    const { error: logError } = await supabase
-      .from('system_logs')
-      .insert({
-        admin_id: adminId,
-        action: 'Match Room Updated',
-        details: `Updated room details for match ${matchId}`,
-        created_at: new Date().toISOString()
-      });
-    
-    if (logError) {
+    try {
+      await supabase
+        .from('system_logs')
+        .insert({
+          admin_id: adminId,
+          action: 'Match Room Updated',
+          details: `Updated room details for match ${matchId}`,
+          created_at: new Date().toISOString()
+        });
+    } catch (logError) {
       console.error("Error logging admin action:", logError);
       // Not critical, so we continue
     }
@@ -229,16 +247,19 @@ export const getMatchParticipants = async (matchId: string): Promise<MatchPartic
     
     for (const entry of data || []) {
       // Get user email (in a production app, this would use a profiles table)
-      const { data: userData, error: userError } = await supabase.auth.admin.getUserById(
-        entry.user_id
-      );
-      
-      if (!userError && userData.user) {
-        participants.push({
-          ...entry,
-          user_email: userData.user.email || 'Unknown'
-        });
-      } else {
+      try {
+        const { data: userData } = await supabase.auth.admin.getUserById(entry.user_id);
+        
+        if (userData?.user) {
+          participants.push({
+            ...entry,
+            user_email: userData.user.email || 'Unknown'
+          });
+        } else {
+          participants.push(entry);
+        }
+      } catch (userError) {
+        console.error("Error getting user info:", userError);
         participants.push(entry);
       }
     }
