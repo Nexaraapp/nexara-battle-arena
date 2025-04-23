@@ -13,10 +13,18 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDistanceToNow } from "date-fns";
 import { 
-  COIN_PACKS, WITHDRAWAL_TIERS, 
-  hasEnoughRealCoins, getUserWithdrawalCount,
-  calculateWithdrawalPayout, getSystemSettings
-} from "@/utils/transactionUtils";
+  COIN_PACKS, WITHDRAWAL_TIERS 
+} from "@/utils/coinPacks";
+import { 
+  hasEnoughRealCoins 
+} from "@/utils/transactionApi";
+import { 
+  getUserWithdrawalCount,
+  calculateWithdrawalPayout
+} from "@/utils/withdrawalApi";
+import { 
+  getSystemSettings
+} from "@/utils/systemSettingsApi";
 
 const Wallet = () => {
   const [balance, setBalance] = useState(0);
