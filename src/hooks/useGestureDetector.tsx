@@ -33,8 +33,15 @@ export const useGestureDetector = ({
     const logoElement = logoElementId ? document.getElementById(logoElementId) : null;
     if (logoElement) {
       const handleLogoClick = () => {
-        setClickCount((prev) => prev + 1);
+        const currentTime = Date.now();
+        if (currentTime - lastClickTime < 1000) { // Slightly more lenient timing for logo taps
+          setClickCount((prev) => prev + 1);
+        } else {
+          setClickCount(1);
+        }
+        setLastClickTime(currentTime);
       };
+      
       logoElement.addEventListener("click", handleLogoClick);
       return () => {
         window.removeEventListener("click", handleFastClicks);
@@ -53,5 +60,5 @@ export const useGestureDetector = ({
     }
   }, [clickCount, requiredClicks]);
 
-  return { showDialog, setShowDialog };
+  return { showDialog, setShowDialog, clickCount };
 };

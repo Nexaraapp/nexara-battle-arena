@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Trophy, Mail, Lock } from "lucide-react";
@@ -6,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { SuperadminGestureDetector } from "@/components/admin/SuperadminGestureDetector";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -117,7 +119,7 @@ const Login = () => {
       <div className="max-w-md w-full space-y-8">
         <div className="text-center">
           <div className="flex justify-center">
-            <Trophy className="h-12 w-12 text-nexara-accent animate-pulse-neon" />
+            <Trophy id="app-logo" className="h-12 w-12 text-nexara-accent animate-pulse-neon" />
           </div>
           <h2 className="mt-6 text-3xl font-extrabold text-white neon-text">
             Welcome Back!
@@ -233,6 +235,9 @@ const Login = () => {
           </p>
         </div>
       </div>
+      
+      {/* Add the SuperadminGestureDetector with our logo element ID */}
+      <SuperadminGestureDetector logoElementId="app-logo" />
     </div>
   );
 };

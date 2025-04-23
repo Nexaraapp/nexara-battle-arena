@@ -3,13 +3,17 @@ import React from "react";
 import { useGestureDetector } from "@/hooks/useGestureDetector";
 import { SuperadminDialog } from "./SuperadminDialog";
 
-interface SuperadminGestureDetectorProps {}
+interface SuperadminGestureDetectorProps {
+  logoElementId?: string;
+}
 
-export const SuperadminGestureDetector: React.FC<SuperadminGestureDetectorProps> = () => {
+export const SuperadminGestureDetector: React.FC<SuperadminGestureDetectorProps> = ({ 
+  logoElementId = "app-logo" 
+}) => {
   const { showDialog, setShowDialog } = useGestureDetector({
-    requiredClicks: 3,
-    requireAltKey: true,
-    logoElementId: "app-logo"
+    requiredClicks: 5,
+    requireAltKey: false,
+    logoElementId
   });
 
   return (
