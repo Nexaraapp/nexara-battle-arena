@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { getSystemSettings } from "./systemSettingsApi";
 import { MatchType, RoomMode, RoomType } from "./match/matchTypes";
@@ -98,8 +99,7 @@ export const generateDefaultMatches = async (superadminId: string): Promise<bool
         room_type: RoomType.Normal,
         first_prize: firstPrize,
         second_prize: secondPrize,
-        third_prize: thirdPrize,
-        coins_per_kill: matchConfig.type === MatchType.BattleRoyale ? 1 : 0 // 1 coin per kill for Battle Royale
+        third_prize: thirdPrize
       });
       
       index++;

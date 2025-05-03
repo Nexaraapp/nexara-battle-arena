@@ -27,7 +27,7 @@ export const DailyMatchGenerator = () => {
       
       if (error) {
         console.error("Error generating matches:", error);
-        toast.error("Failed to generate daily matches: " + error.message);
+        toast.error("Failed to generate daily matches. Please check the edge function logs.");
         return;
       }
       
@@ -45,7 +45,7 @@ export const DailyMatchGenerator = () => {
       }
     } catch (error: any) {
       console.error("Error in match generation:", error);
-      toast.error("An error occurred during match generation: " + error.message);
+      toast.error("An error occurred during match generation. Please check server logs.");
     } finally {
       setIsGenerating(false);
     }
