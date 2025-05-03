@@ -21,7 +21,7 @@ export const RouteGuard: React.FC<RouteGuardProps> = ({
   requireAdmin = false,
   requireSuperadmin = false
 }) => {
-  const { isAuthenticated, isAdmin, isSuperadmin, loading } = useAuth();
+  const { isAuthenticated, isAdmin, isSuperadmin, isLoading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [isChecking, setIsChecking] = useState(true);
@@ -29,7 +29,7 @@ export const RouteGuard: React.FC<RouteGuardProps> = ({
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        if (loading) return;
+        if (isLoading) return;
 
         // Check authentication first
         if (requireAuth && !isAuthenticated) {
@@ -61,10 +61,10 @@ export const RouteGuard: React.FC<RouteGuardProps> = ({
     };
 
     checkAuth();
-  }, [loading, isAuthenticated, requireAuth, requireAdmin, requireSuperadmin, navigate, location, isAdmin, isSuperadmin]);
+  }, [isLoading, isAuthenticated, requireAuth, requireAdmin, requireSuperadmin, navigate, location, isAdmin, isSuperadmin]);
 
   // Show loading state while checking authentication
-  if (loading || isChecking) {
+  if (isLoading || isChecking) {
     return (
       <div className="flex items-center justify-center h-screen">
         <Loader2 className="h-8 w-8 animate-spin text-nexara-accent" />
