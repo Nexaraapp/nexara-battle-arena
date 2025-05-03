@@ -1,7 +1,9 @@
 
 import { supabase } from "@/integrations/supabase/client";
-import { Match, MatchType } from "./matchTypes";
+import { Match, MatchType, MatchStatus } from "./matchTypes";
 import { toast } from "sonner";
+
+export { Match, MatchType, MatchStatus } from "./matchTypes";
 
 export const updateMatchRoomDetails = async (
   matchId: string,
@@ -183,5 +185,143 @@ export const completeMatch = async (
   } catch (error) {
     console.error("Error in completeMatch:", error);
     return false;
+  }
+};
+
+// Add joinMatch function for other pages that need it
+export const joinMatch = async (matchId: string, userId: string): Promise<boolean> => {
+  try {
+    // Check if the user has already joined this match
+    const { data: existingEntry, error: checkError } = await supabase
+      .from('match_entries')
+      .select('*')
+      .eq('match_id', matchId)
+      .eq('user_id', userId)
+      .maybeSingle();
+      
+    if (existingEntry) {
+      toast.error("You have already joined this match");
+      return false;
+    }
+    
+    // Get match details
+    const { data: match, error: matchError } = await supabase
+      .from('matches')
+      .select('*')
+      .eq('id', matchId)
+      .single();
+      
+    if (matchError || !match) {
+      console.error("Error fetching match:", matchError);
+      toast.error("Could not find match details");
+      return false;
+    }
+    
+    // Check if match is full
+    if (match.slots_filled >= match.slots) {
+      toast.error("This match is already full");
+      return false;
+    }
+    
+    // Find the next available slot number
+    const { data: takenSlots, error: slotsError } = await supabase
+      .from('match_entries')
+      .select('slot_number')
+      .eq('match_id', matchId)
+      .order('slot_number', { ascending: true });
+      
+    if (slotsError) {
+      console.error("Error fetching taken slots:", slotsError);
+      return false;
+    }
+    
+    const takenSlotNumbers = takenSlots.map(entry => entry.slot_number);
+    let slotNumber = 1;
+    while (takenSlotNumbers.includes(slotNumber)) {
+      slotNumber++;
+    }
+    
+    // Create a new entry
+    const { error: insertError } = await supabase
+      .from('match_entries')
+      .insert({
+        match_id: matchId,
+        user_id: userId,
+        paid: false,
+        slot_number: slotNumber
+      });
+      
+    if (insertError) {
+      console.error("Error joining match:", insertError);
+      toast.error("Failed to join match");
+      return false;
+    }
+    
+    // Record transaction for entry fee
+    const { error: transactionError } = await supabase
+      .from('transactions')
+      .insert({
+        user_id: userId,
+        amount: -match.entry_fee,
+        type: 'match_entry',
+        status: 'pending',
+        match_id: matchId,
+        date: new Date().toISOString().split('T')[0],
+        notes: `Entry fee for ${match.type} match`
+      });
+      
+    if (transactionError) {
+      console.error("Error recording transaction:", transactionError);
+      // Clean up the match entry since the transaction failed
+      await supabase
+        .from('match_entries')
+        .delete()
+        .eq('match_id', matchId)
+        .eq('user_id', userId);
+        
+      toast.error("Failed to process entry fee");
+      return false;
+    }
+    
+    // Increment the slots filled
+    const { error: updateError } = await supabase
+      .from('matches')
+      .update({
+        slots_filled: match.slots_filled + 1
+      })
+      .eq('id', matchId);
+      
+    if (updateError) {
+      console.error("Error updating match slots:", updateError);
+      // Don't need to clean up since the user is still registered
+    }
+    
+    toast.success("Successfully joined the match! Please check your notifications for match details.");
+    return true;
+  } catch (error) {
+    console.error("Error in joinMatch:", error);
+    toast.error("An unexpected error occurred");
+    return false;
+  }
+};
+
+// Add getUpcomingMatches for other pages that need it
+export const getUpcomingMatches = async (): Promise<Match[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('matches')
+      .select('*')
+      .in('status', ['upcoming', 'active'])
+      .order('created_at', { ascending: false });
+      
+    if (error) {
+      console.error("Error fetching upcoming matches:", error);
+      return [];
+    }
+    
+    return data as Match[];
+  } catch (error) {
+    console.error("Error in getUpcomingMatches:", error);
+    return [];
   }
 };

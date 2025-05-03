@@ -21,6 +21,13 @@ export enum RoomType {
   Custom = "custom"
 }
 
+export enum MatchStatus {
+  Upcoming = "upcoming",
+  Active = "active",
+  Completed = "completed",
+  Cancelled = "cancelled"
+}
+
 // Define the comprehensive Match interface that combines both DB schema properties
 export interface Match {
   id: string;

@@ -16,15 +16,19 @@ export const setUserAsAdmin = async (
     // If email was provided instead of ID, look up the user ID
     if (typeof userId === 'object' && userId.email) {
       // Look up user by email
-      const { data: userData, error: userError } = await supabase.auth.admin.getUserByEmail(userId.email);
+      const { data, error } = await supabase.auth.admin.listUsers({
+        filter: {
+          email: userId.email,
+        },
+      });
       
-      if (userError || !userData?.user) {
-        console.error("Error looking up user:", userError);
+      if (error || !data || !data.users || data.users.length === 0) {
+        console.error("Error looking up user:", error);
         toast.error("User not found with that email");
         return false;
       }
       
-      targetUserId = userData.user.id;
+      targetUserId = data.users[0].id;
     }
     
     if (!targetUserId) {
