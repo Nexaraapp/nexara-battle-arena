@@ -161,6 +161,24 @@ export type Database = {
         }
         Relationships: []
       }
+      top_up_packs: {
+        Row: {
+          amount: number
+          coins: number
+          id: number
+        }
+        Insert: {
+          amount: number
+          coins: number
+          id?: never
+        }
+        Update: {
+          amount?: number
+          coins?: number
+          id?: never
+        }
+        Relationships: []
+      }
       transactions: {
         Row: {
           admin_id: string | null
@@ -215,6 +233,24 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      withdrawal_tiers: {
+        Row: {
+          amount: number
+          coins: number
+          id: number
+        }
+        Insert: {
+          amount: number
+          coins: number
+          id?: never
+        }
+        Update: {
+          amount?: number
+          coins?: number
+          id?: never
         }
         Relationships: []
       }

@@ -1,48 +1,20 @@
 import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { 
-  Loader2, ArrowUpDown, Search, Filter, Trophy, Plus, X, User, Check, 
-  Trash2, AlertCircle, Eye, Settings, CircleDollarSign, Wallet, UsersRound 
-} from "lucide-react";
-import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
-import { 
-  getMatches, 
-  createMatch, 
-  cancelMatch, 
-  completeMatch
-} from "@/utils/matchUtils";
-import { 
-  getUserTransactions, 
-  TransactionType, 
-  Transaction 
-} from "@/utils/transactionUtils";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Separator } from "@/components/ui/separator";
+import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
-import { UserSearchResult, searchUsers } from "@/utils/adminUtils";
-import { 
-  getSystemSettings, updateSystemSettings, setUserAsAdmin, updateMatchRoomDetails 
-} from "@/utils/adminHelpers";
-import { MatchType, RoomMode, RoomType } from "@/utils/matchTypes";
-import { Match } from "@/utils/matchTypes"; // Add this import
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
+import { Calendar, Users, Settings, Wallet, ListTodo } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { searchUsers, checkUserIsAdmin, checkUserIsSuperAdmin, logAdminAction } from "@/utils/adminUtils";
+import { Match } from "@/utils/matchTypes";
+import { Transaction } from "@/utils/transactionTypes"; // Updated import
+import { getUserInfo } from "@/utils/userApi"; // Updated import
+import { getSystemSettings } from "@/utils/systemSettingsApi"; // Updated import
 
 // Define type for Match
 interface MatchData {
