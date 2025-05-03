@@ -5,6 +5,7 @@ import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { logAdminAction } from '@/utils/adminUtils';
 
 export const DailyMatchGenerator = () => {
   const [isGenerating, setIsGenerating] = useState(false);
@@ -26,7 +27,7 @@ export const DailyMatchGenerator = () => {
       
       if (error) {
         console.error("Error generating matches:", error);
-        toast.error("Failed to generate daily matches");
+        toast.error("Failed to generate daily matches: " + error.message);
         return;
       }
       
@@ -34,10 +35,17 @@ export const DailyMatchGenerator = () => {
         toast.info("All default matches are already created for today");
       } else {
         toast.success(`Successfully created ${data?.count || 'multiple'} matches`);
+        
+        // Log the admin action
+        await logAdminAction(
+          user.id,
+          'Generated Daily Matches',
+          `Created ${data?.count} matches automatically`
+        );
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error in match generation:", error);
-      toast.error("An error occurred during match generation");
+      toast.error("An error occurred during match generation: " + error.message);
     } finally {
       setIsGenerating(false);
     }

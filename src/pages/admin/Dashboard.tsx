@@ -1,4 +1,3 @@
-
 import React, { Suspense, lazy, useEffect, useState } from 'react';
 import { Loader2, UserPlus, Users, Activity, Award } from 'lucide-react';
 import { MatchManagement } from '@/components/admin/MatchManagement';
@@ -7,10 +6,13 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
+import { logAdminAction } from '@/utils/adminUtils';
 
 // Lazy load other admin components if needed
 const Dashboard = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [stats, setStats] = useState({
     totalUsers: 0,
     activeMatches: 0,
@@ -59,6 +61,56 @@ const Dashboard = () => {
       toast.error("Failed to load admin statistics");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleManageUsers = () => {
+    // For now, we'll show a toast until the User Management page is implemented
+    // Future enhancement: navigate to a user management page
+    toast.info("User management page is under construction");
+    logAdminAction(user?.id || '', 'Accessed User Management', 'Attempted to access user management feature');
+  };
+
+  const handleReviewWithdrawals = async () => {
+    // For now, we'll fetch and show withdrawal info in a toast
+    try {
+      const { data, error } = await supabase
+        .from('withdrawals')
+        .select('*')
+        .eq('status', 'pending')
+        .limit(5);
+        
+      if (error) throw error;
+      
+      if (data && data.length > 0) {
+        toast.info(`${data.length} withdrawal requests pending review`);
+      } else {
+        toast.info("No pending withdrawals to review");
+      }
+      
+      logAdminAction(user?.id || '', 'Checked Withdrawals', 'Viewed pending withdrawal requests');
+    } catch (error) {
+      console.error("Error checking withdrawals:", error);
+      toast.error("Failed to fetch withdrawal information");
+    }
+  };
+
+  const handleSystemSettings = async () => {
+    try {
+      // Fetch the current system settings
+      const { data, error } = await supabase
+        .from('system_settings')
+        .select('*')
+        .single();
+        
+      if (error) throw error;
+      
+      // Display settings info for now
+      toast.info(`Current profit margin: ${data?.match_profit_margin || 40}%`);
+      logAdminAction(user?.id || '', 'Checked System Settings', 'Viewed system configuration');
+    } catch (error) {
+      console.error("Error fetching system settings:", error);
+      toast.error("Failed to load system settings");
     }
   };
 
@@ -148,7 +200,7 @@ const Dashboard = () => {
             <Button 
               variant="outline" 
               className="w-full justify-start" 
-              onClick={() => toast.info("User management feature coming soon!")}
+              onClick={handleManageUsers}
             >
               <Users className="mr-2 h-4 w-4" /> Manage Users
             </Button>
@@ -156,7 +208,7 @@ const Dashboard = () => {
             <Button 
               variant="outline" 
               className="w-full justify-start"
-              onClick={() => toast.info("Withdrawal management feature coming soon!")}
+              onClick={handleReviewWithdrawals}
             >
               <Award className="mr-2 h-4 w-4" /> Review Withdrawals
             </Button>
@@ -164,7 +216,7 @@ const Dashboard = () => {
             <Button 
               variant="outline" 
               className="w-full justify-start"
-              onClick={() => toast.info("System settings feature coming soon!")}
+              onClick={handleSystemSettings}
             >
               <Activity className="mr-2 h-4 w-4" /> System Settings
             </Button>
@@ -176,14 +228,73 @@ const Dashboard = () => {
             <CardTitle>Admin Activity</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Recent admin activity will appear here
-              </p>
-            </div>
+            <AdminActivityLog userId={user?.id} />
           </CardContent>
         </Card>
       </div>
+    </div>
+  );
+};
+
+// Create a new component to display admin activity
+const AdminActivityLog = ({ userId }: { userId?: string }) => {
+  const [activities, setActivities] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!userId) return;
+    
+    const fetchActivity = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('system_logs')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(5);
+          
+        if (error) throw error;
+        
+        setActivities(data || []);
+      } catch (error) {
+        console.error("Error fetching admin activity:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchActivity();
+  }, [userId]);
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleString();
+  };
+
+  return (
+    <div className="space-y-4">
+      {loading ? (
+        <div className="flex justify-center">
+          <Loader2 className="h-6 w-6 animate-spin" />
+        </div>
+      ) : activities.length > 0 ? (
+        <div className="space-y-2">
+          {activities.map((activity) => (
+            <div key={activity.id} className="border-b pb-2 last:border-0">
+              <p className="font-medium text-sm">{activity.action}</p>
+              {activity.details && (
+                <p className="text-xs text-muted-foreground">{activity.details}</p>
+              )}
+              <p className="text-xs text-muted-foreground mt-1">
+                {formatDate(activity.created_at)}
+              </p>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          No recent admin activity found
+        </p>
+      )}
     </div>
   );
 };
