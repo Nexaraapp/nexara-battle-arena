@@ -1,9 +1,9 @@
-
 import { supabase } from "@/integrations/supabase/client";
-import { Match, MatchType, MatchStatus } from "./matchTypes";
+import type { Match, MatchType, MatchStatus } from "./matchTypes";
 import { toast } from "sonner";
 
-export { Match, MatchType, MatchStatus } from "./matchTypes";
+export type { Match } from "./matchTypes";
+export { MatchType, MatchStatus } from "./matchTypes";
 
 export const updateMatchRoomDetails = async (
   matchId: string,

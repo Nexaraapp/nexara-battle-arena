@@ -1,5 +1,6 @@
 
 // Define user roles and auth-related utilities
+import { supabase } from "@/integrations/supabase/client";
 
 export enum UserRole {
   USER = 'user',
@@ -14,7 +15,22 @@ export interface AuthUser {
 }
 
 export const hasUserRole = async (userId: string, role: UserRole): Promise<boolean> => {
-  // This function would check if a user has a specific role
-  // Implementation would depend on how roles are stored in your database
-  return false;
+  try {
+    const { data, error } = await supabase
+      .from('user_roles')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('role', role)
+      .maybeSingle();
+      
+    if (error) {
+      console.error("Error checking role:", error);
+      return false;
+    }
+    
+    return !!data;
+  } catch (error) {
+    console.error("Error in hasUserRole:", error);
+    return false;
+  }
 };
