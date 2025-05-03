@@ -1,7 +1,7 @@
 
 // This file is now a wrapper for the new refactored match modules
 // It's maintained for backward compatibility
-import { 
+import type { 
   Match, 
   MatchType, 
   MatchStatus,
@@ -31,11 +31,11 @@ import {
 // Re-export everything for backward compatibility
 export {
   // Types
-  Match,
-  MatchType,
-  MatchStatus,
-  RoomMode,
-  RoomType,
+  type Match,
+  type MatchType,
+  type MatchStatus,
+  type RoomMode,
+  type RoomType,
   
   // Queries
   getUpcomingMatches,
