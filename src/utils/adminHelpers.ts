@@ -7,15 +7,36 @@ import { UserRole } from "./authUtils";
  * Set a user as an admin
  */
 export const setUserAsAdmin = async (
-  userId: string, 
+  userId: string | { email: string }, 
   byAdminId: string
 ): Promise<boolean> => {
   try {
+    let targetUserId = typeof userId === 'string' ? userId : '';
+    
+    // If email was provided instead of ID, look up the user ID
+    if (typeof userId === 'object' && userId.email) {
+      // Look up user by email
+      const { data: userData, error: userError } = await supabase.auth.admin.getUserByEmail(userId.email);
+      
+      if (userError || !userData?.user) {
+        console.error("Error looking up user:", userError);
+        toast.error("User not found with that email");
+        return false;
+      }
+      
+      targetUserId = userData.user.id;
+    }
+    
+    if (!targetUserId) {
+      toast.error("Invalid user ID or email");
+      return false;
+    }
+    
     // Check if the user already has the admin role
     const { data, error: checkError } = await supabase
       .from('user_roles')
       .select('*')
-      .eq('user_id', userId)
+      .eq('user_id', targetUserId)
       .eq('role', UserRole.ADMIN)
       .maybeSingle();
       
@@ -35,7 +56,7 @@ export const setUserAsAdmin = async (
     const { error: insertError } = await supabase
       .from('user_roles')
       .insert({
-        user_id: userId,
+        user_id: targetUserId,
         role: UserRole.ADMIN
       });
       
@@ -51,7 +72,7 @@ export const setUserAsAdmin = async (
       .insert({
         admin_id: byAdminId,
         action: 'Admin Role Assigned',
-        details: `Assigned admin role to user ${userId}`
+        details: `Assigned admin role to user ${targetUserId}`
       });
       
     toast.success("User has been set as admin");

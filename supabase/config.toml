@@ -1,1 +1,29 @@
+
+# A string used to distinguish different Supabase projects on the same host. Defaults to the
+# working directory name when running `supabase init`.
 project_id = "etcmyqkdgeohchzwswsp"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "storage", "graphql_public"]
+
+# Extra schemas to add to the GraphQL API
+graphql.schemas = []
+
+[db]
+port = 54322
+
+[realtime]
+enabled = true
+
+[studio]
+enabled = true
+port = 54323
+api_url = "http://localhost"
+
+[functions.cancelMatch]
+verify_jwt = true
+
+[functions.generateDailyMatches]
+verify_jwt = true

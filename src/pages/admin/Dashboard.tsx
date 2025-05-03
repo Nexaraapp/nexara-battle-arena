@@ -47,39 +47,18 @@ import { useAuth } from "@/hooks/useAuth";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { searchUsers, checkUserIsAdmin, checkUserIsSuperAdmin, logAdminAction } from "@/utils/adminUtils";
+import { searchUsers, checkUserIsAdmin, checkUserIsSuperAdmin } from "@/utils/adminUtils";
 import { Match, MatchType, RoomMode, RoomType } from "@/utils/matchTypes";
-import { Transaction, UserWalletInfo } from "@/utils/transactionTypes";
+import { Transaction } from "@/utils/transactionTypes";
 import { getSystemSettings, updateSystemSettings } from "@/utils/systemSettingsApi";
 import { getUserInfo } from "@/utils/userApi";
 import { updateMatchRoomDetails, createMatch, cancelMatch, completeMatch } from "@/utils/matchUtils";
 import { setUserAsAdmin } from "@/utils/adminHelpers";
 
-// Define type for UserSearchResult since it was missing
+// Define type for UserSearchResult
 interface UserSearchResult {
   id: string;
   email: string;
-}
-
-// Use the imported Match type
-interface Match {
-  id: string;
-  type: string;
-  status: string;
-  slots: number;
-  slots_filled: number;
-  entry_fee: number;
-  prize: number;
-  room_id?: string;
-  room_password?: string;
-  created_at: string;
-  start_time?: string;
-  mode?: string;
-  room_type?: string;
-  coins_per_kill?: number;
-  first_prize?: number;
-  second_prize?: number;
-  third_prize?: number;
 }
 
 // Define SystemLog type
