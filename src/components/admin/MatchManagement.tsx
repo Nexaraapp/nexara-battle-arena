@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Loader2, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { Match } from '@/utils/matchTypes';
+import { Match } from '@/utils/match/matchTypes';
 import { useAuth } from '@/hooks/useAuth';
 import { DailyMatchGenerator } from './DailyMatchGenerator';
 import { MatchEditor } from './MatchEditor';

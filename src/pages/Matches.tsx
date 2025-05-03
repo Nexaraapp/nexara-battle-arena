@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Search, Filter, Trophy, Clock, Loader } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { Match, joinMatch, getUpcomingMatches } from "@/utils/matchUtils";
+import { Match, joinMatch, getUpcomingMatches } from "@/utils/match";
 import AdDisplay from "@/components/ads/AdDisplay";
 import { AdPlacement, shouldShowAdsToUser } from "@/utils/adUtils";
 
