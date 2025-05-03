@@ -1,125 +1,116 @@
 
 import { supabase } from "@/integrations/supabase/client";
-import { MatchType, RoomMode, RoomType } from "@/utils/matchTypes";
 import { getSystemSettings } from "./systemSettingsApi";
+import { MatchType, RoomMode, RoomType } from "./matchTypes";
 
-// Generate 5 default matches for the day at specified times (5 PM - 9 PM)
-export const generateDefaultMatches = async (adminId: string): Promise<boolean> => {
+/**
+ * Generate default matches for the day
+ * Creates 5 matches at 5 PM, 6 PM, 7 PM, 8 PM, and 9 PM
+ */
+export const generateDefaultMatches = async (superadminId: string): Promise<boolean> => {
   try {
-    // Get system settings for profit margin
-    const settings = await getSystemSettings();
-    const profitMargin = settings.matchProfitMargin || 40; // Default to 40% if not set
-    
-    // Get today's date and check if matches already exist
+    // Check if matches are already generated for today
     const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString();
+    const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59).toISOString();
     
-    // Check if matches already exist for today
     const { data: existingMatches, error: checkError } = await supabase
       .from('matches')
-      .select('id')
-      .gte('start_time', today.toISOString())
-      .lt('start_time', tomorrow.toISOString());
+      .select('id, start_time')
+      .gte('start_time', startOfDay)
+      .lte('start_time', endOfDay);
       
     if (checkError) {
       console.error("Error checking existing matches:", checkError);
       return false;
     }
     
-    // If matches already exist for today, don't generate more
+    // If we already have 5 or more matches for today, don't create more
     if (existingMatches && existingMatches.length >= 5) {
-      console.log("Default matches already exist for today");
+      console.log("Default matches already generated for today");
       return true;
     }
     
-    // Define default match configurations
-    const defaultMatches = [
-      {
-        hour: 17, // 5 PM
-        type: MatchType.BattleRoyale,
-        mode: RoomMode.Solo,
-        entry_fee: 20,
-        slots: 48,
-        prize_pool: 800,
-      },
-      {
-        hour: 18, // 6 PM
-        type: MatchType.BattleRoyale,
-        mode: RoomMode.Duo,
-        entry_fee: 30,
-        slots: 48,
-        prize_pool: 1200,
-      },
-      {
-        hour: 19, // 7 PM
-        type: MatchType.BattleRoyale,
-        mode: RoomMode.Squad,
-        entry_fee: 40,
-        slots: 48,
-        prize_pool: 1600,
-      },
-      {
-        hour: 20, // 8 PM
-        type: MatchType.BattleRoyale,
-        mode: RoomMode.Solo,
-        entry_fee: 50,
-        slots: 48,
-        prize_pool: 2000,
-      },
-      {
-        hour: 21, // 9 PM
-        type: MatchType.ClashSquad,
-        mode: RoomMode.Squad,
-        entry_fee: 60,
-        slots: 48,
-        prize_pool: 2400,
-      },
+    // Get system settings for profit margin
+    const settings = await getSystemSettings();
+    const profitMargin = settings.matchProfitMargin || 40; // Default to 40% if not set
+    
+    // Create 5 matches at 5 PM, 6 PM, 7 PM, 8 PM, and 9 PM
+    const matchTimes = [17, 18, 19, 20, 21];
+    const matchTypes = [
+      { type: MatchType.BattleRoyale, mode: RoomMode.Solo, slots: 48 },
+      { type: MatchType.BattleRoyale, mode: RoomMode.Duo, slots: 48 },
+      { type: MatchType.BattleRoyale, mode: RoomMode.Squad, slots: 48 },
+      { type: MatchType.ClashSquad, mode: RoomMode.Squad, slots: 8 },
+      { type: MatchType.ClashSquad, mode: RoomMode.Squad, slots: 8 }
     ];
     
-    // Generate matches
-    const matchInserts = [];
-    for (const match of defaultMatches) {
-      // Skip if a match at this time already exists
-      if (existingMatches?.some(em => {
-        const matchDate = new Date(em.start_time);
-        return matchDate.getHours() === match.hour;
-      })) {
-        continue;
-      }
-      
-      // Create start time
-      const startTime = new Date(today);
-      startTime.setHours(match.hour, 0, 0, 0);
-      
-      // Calculate prize distribution
-      const firstPrize = Math.floor(match.prize_pool * 0.6);
-      const secondPrize = Math.floor(match.prize_pool * 0.3);
-      const thirdPrize = match.prize_pool - firstPrize - secondPrize;
-      
-      matchInserts.push({
-        type: match.type.toLowerCase(),
-        mode: match.mode.toLowerCase(),
-        room_type: RoomType.Normal.toLowerCase(),
-        slots: match.slots,
-        entry_fee: match.entry_fee,
-        prize: match.prize_pool,
-        first_prize: firstPrize,
-        second_prize: secondPrize,
-        third_prize: thirdPrize,
-        coins_per_kill: 5,
-        start_time: startTime.toISOString(),
-        status: 'upcoming',
-        created_by: adminId
+    // Skip times that already have matches
+    const existingTimes = new Set();
+    if (existingMatches) {
+      existingMatches.forEach(match => {
+        if (match.start_time) {
+          const matchTime = new Date(match.start_time).getHours();
+          existingTimes.add(matchTime);
+        }
       });
     }
     
-    // Insert matches if any need to be created
-    if (matchInserts.length > 0) {
+    const matchesToCreate = [];
+    let index = 0;
+    
+    for (const hour of matchTimes) {
+      if (existingTimes.has(hour)) {
+        console.log(`Match already exists for ${hour}:00`);
+        continue;
+      }
+      
+      if (index >= matchTypes.length) {
+        index = 0;
+      }
+      
+      const matchConfig = matchTypes[index];
+      
+      // Calculate start time for this match
+      const startTime = new Date(today.getFullYear(), today.getMonth(), today.getDate(), hour, 0, 0).toISOString();
+      
+      // Calculate entry fee and prize pool
+      // For simplicity, use entry fee of 10 coins for all matches
+      const entryFee = 10;
+      // Prize pool is entry fee * slots * (1 - profit margin / 100)
+      const totalPossibleFees = entryFee * matchConfig.slots;
+      const prizePool = Math.floor(totalPossibleFees * (1 - profitMargin / 100));
+      
+      // Calculate prize distribution (50% first, 30% second, 20% third)
+      const firstPrize = Math.floor(prizePool * 0.5);
+      const secondPrize = Math.floor(prizePool * 0.3);
+      const thirdPrize = prizePool - firstPrize - secondPrize; // Ensure total adds up exactly
+      
+      matchesToCreate.push({
+        type: matchConfig.type,
+        slots: matchConfig.slots,
+        entry_fee: entryFee,
+        prize: prizePool,
+        start_time: startTime,
+        status: 'upcoming',
+        created_by: superadminId,
+        slots_filled: 0,
+        mode: matchConfig.mode,
+        room_type: RoomType.Normal,
+        first_prize: firstPrize,
+        second_prize: secondPrize,
+        third_prize: thirdPrize,
+        coins_per_kill: matchConfig.type === MatchType.BattleRoyale ? 1 : 0 // 1 coin per kill for Battle Royale
+      });
+      
+      index++;
+    }
+    
+    // Insert new matches
+    if (matchesToCreate.length > 0) {
       const { error: insertError } = await supabase
         .from('matches')
-        .insert(matchInserts);
+        .insert(matchesToCreate);
         
       if (insertError) {
         console.error("Error creating default matches:", insertError);
@@ -130,25 +121,20 @@ export const generateDefaultMatches = async (adminId: string): Promise<boolean> 
       await supabase
         .from('system_logs')
         .insert({
-          admin_id: adminId,
-          action: 'Default Matches Created',
-          details: `Created ${matchInserts.length} default matches for ${today.toISOString().split('T')[0]}`
+          admin_id: superadminId,
+          action: 'Default Matches Generated',
+          details: `Generated ${matchesToCreate.length} default matches for today`
         });
+        
+      console.log(`Created ${matchesToCreate.length} default matches`);
+      return true;
+    } else {
+      console.log("No new matches needed to be created");
+      return true;
     }
     
-    return true;
   } catch (error) {
     console.error("Error generating default matches:", error);
     return false;
-  }
-};
-
-// Function to check and generate matches if needed (can be called daily)
-export const checkAndGenerateDefaultMatches = async (adminId: string): Promise<void> => {
-  const now = new Date();
-  
-  // Only generate matches once per day, early in the morning
-  if (now.getHours() < 8) {
-    await generateDefaultMatches(adminId);
   }
 };

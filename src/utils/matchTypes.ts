@@ -1,24 +1,24 @@
 
 // Define match types and constants
 export enum MatchType {
-  BattleRoyale = 'BattleRoyale',
-  ClashSolo = 'ClashSolo',
-  ClashDuo = 'ClashDuo',
-  ClashSquad = 'ClashSquad'
+  BattleRoyale = "battle_royale",
+  ClashSolo = "clash_solo",
+  ClashDuo = "clash_duo",
+  ClashSquad = "clash_squad"
 }
 
 export enum RoomMode {
-  Solo = 'Solo',
-  Duo = 'Duo',
-  Squad = 'Squad'
+  Solo = "solo",
+  Duo = "duo",
+  Squad = "squad"
 }
 
 export enum RoomType {
-  Normal = 'Normal',
-  Sniper = 'Sniper',
-  Pistol = 'Pistol',
-  Melee = 'Melee',
-  Custom = 'Custom'
+  Normal = "normal",
+  Sniper = "sniper_only",
+  Pistol = "pistol_only",
+  Melee = "melee_only",
+  Custom = "custom"
 }
 
 // Define the comprehensive Match interface that combines both DB schema properties
@@ -26,11 +26,11 @@ export interface Match {
   id: string;
   
   // Properties from the dashboard usage
-  type?: string;
-  slots?: number;
-  slots_filled?: number;
+  type: string;
+  slots: number;
+  slots_filled: number;
   entry_fee: number;
-  prize?: number;
+  prize: number;
   room_id?: string;
   room_password?: string;
   created_by?: string;
@@ -38,6 +38,7 @@ export interface Match {
   start_time: string;
   status: string;
   mode?: string;
+  room_type?: string;
   
   // Properties from the API schema
   title?: string;

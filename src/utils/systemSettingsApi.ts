@@ -42,7 +42,7 @@ export const updateSystemSettings = async (
         match_profit_margin: settings.matchProfitMargin,
         updated_at: new Date().toISOString()
       })
-      .eq('id', 1); // Assuming there's only one settings row with id=1
+      .eq('id', 1); // Converting to string to fix the type error
       
     if (error) {
       console.error("Error updating system settings:", error);
