@@ -5,16 +5,61 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle,
+  DialogTrigger 
+} from "@/components/ui/dialog";
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
-import { Calendar, Users, Settings, Wallet, ListTodo } from "lucide-react";
+import { 
+  Calendar, 
+  Users, 
+  Settings, 
+  Wallet, 
+  ListTodo, 
+  Eye, 
+  Search, 
+  User,
+  CircleDollarSign, 
+  Trophy,
+  UsersRound,
+  Trash2, 
+  Check,
+  AlertCircle
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { searchUsers, checkUserIsAdmin, checkUserIsSuperAdmin, logAdminAction } from "@/utils/adminUtils";
-import { Match } from "@/utils/matchTypes";
-import { Transaction } from "@/utils/transactionTypes"; // Updated import
-import { getUserInfo } from "@/utils/userApi"; // Updated import
-import { getSystemSettings } from "@/utils/systemSettingsApi"; // Updated import
+import { MatchType, RoomMode, RoomType } from "@/utils/matchTypes";
+import { Transaction, UserWalletInfo } from "@/utils/transactionTypes";
+import { getSystemSettings, updateSystemSettings } from "@/utils/systemSettingsApi";
+import { getUserInfo } from "@/utils/userApi";
+import { updateMatchRoomDetails, createMatch, cancelMatch, completeMatch } from "@/utils/matchUtils";
+import { setUserAsAdmin } from "@/utils/adminHelpers";
+
+// Define type for UserSearchResult since it was missing
+interface UserSearchResult {
+  id: string;
+  email: string;
+}
 
 // Define type for Match
 interface MatchData {
