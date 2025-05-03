@@ -1,5 +1,6 @@
+
 import { supabase } from "@/integrations/supabase/client";
-import type { Match, MatchType, MatchStatus } from "./matchTypes";
+import { Match, MatchType, MatchStatus } from "./matchTypes";
 import { toast } from "sonner";
 
 export type { Match } from "./matchTypes";
@@ -136,16 +137,60 @@ export const cancelMatch = async (
       return false;
     }
     
-    // Start a database transaction using RPC for refunding and status update
-    const { data, error } = await supabase.rpc('cancel_match', {
-      match_id_param: matchId,
-      admin_id_param: adminId
-    });
-    
-    if (error) {
-      console.error("Error cancelling match:", error);
+    // We need to manually implement the match cancellation since RPC is not available
+    // First update match status
+    const { error: updateError } = await supabase
+      .from('matches')
+      .update({ status: 'cancelled' })
+      .eq('id', matchId);
+      
+    if (updateError) {
+      console.error("Error cancelling match:", updateError);
       return false;
     }
+    
+    // Get all paid entries
+    const { data: entries, error: entriesError } = await supabase
+      .from('match_entries')
+      .select('user_id')
+      .eq('match_id', matchId)
+      .eq('paid', true);
+      
+    if (entriesError) {
+      console.error("Error fetching match entries:", entriesError);
+      return false;
+    }
+    
+    // Refund all paid entries
+    if (entries && entries.length > 0) {
+      const refundTransactions = entries.map(entry => ({
+        user_id: entry.user_id,
+        amount: matchData.entry_fee, // Refund the entry fee
+        type: 'refund',
+        status: 'completed',
+        match_id: matchId,
+        date: new Date().toISOString().split('T')[0],
+        notes: `Refund for cancelled match ${matchId}`
+      }));
+      
+      const { error: refundError } = await supabase
+        .from('transactions')
+        .insert(refundTransactions);
+        
+      if (refundError) {
+        console.error("Error processing refunds:", refundError);
+        return false;
+      }
+    }
+    
+    // Log the admin action
+    await supabase
+      .from('system_logs')
+      .insert({
+        admin_id: adminId,
+        action: 'Match Cancelled',
+        details: `Cancelled match ${matchId} and processed refunds for ${entries?.length || 0} participants`
+      });
     
     return true;
   } catch (error) {

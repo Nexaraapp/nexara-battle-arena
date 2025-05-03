@@ -54,7 +54,8 @@ serve(async (req: Request) => {
       .single();
       
     if (settingsError) {
-      throw new Error(`Error fetching system settings: ${settingsError.message}`);
+      console.error(`Error fetching system settings: ${settingsError.message}`);
+      // Continue with default profit margin if settings can't be fetched
     }
     
     const profitMargin = settings?.match_profit_margin || 40; // Default to 40% if not set
@@ -114,33 +115,37 @@ serve(async (req: Request) => {
       },
       {
         hour: 20, // 8 PM
-        type: MATCH_TYPES.BATTLE_ROYALE,
-        mode: ROOM_MODES.SOLO,
+        type: MATCH_TYPES.CLASH_SQUAD,
+        mode: ROOM_MODES.SQUAD,
         entry_fee: 50,
-        slots: 48,
-        prize_pool: 2000,
-        title: "Evening Solo Battle"
+        slots: 8,
+        prize_pool: 300,
+        title: "Clash Squad 4v4"
       },
       {
         hour: 21, // 9 PM
-        type: MATCH_TYPES.CLASH_SQUAD,
-        mode: ROOM_MODES.SQUAD,
+        type: MATCH_TYPES.BATTLE_ROYALE,
+        mode: ROOM_MODES.SOLO,
         entry_fee: 60,
         slots: 48,
         prize_pool: 2400,
-        title: "Night Clash Squad"
+        title: "Night Solo Battle"
       },
     ];
     
-    // Filter out matches that already exist at the same times
-    const matchesToCreate = defaultMatches.filter(match => {
-      if (!existingMatches) return true;
-      
-      return !existingMatches.some(em => {
-        const matchDate = new Date(em.start_time);
-        return matchDate.getHours() === match.hour;
+    // Filter out times that already have matches
+    const existingTimes = new Set();
+    if (existingMatches) {
+      existingMatches.forEach(match => {
+        if (match.start_time) {
+          const matchTime = new Date(match.start_time).getHours();
+          existingTimes.add(matchTime);
+        }
       });
-    });
+    }
+    
+    // Filter out matches that already exist at the same times
+    const matchesToCreate = defaultMatches.filter(match => !existingTimes.has(match.hour));
     
     // Generate matches
     const matchInserts = matchesToCreate.map(match => {
@@ -148,10 +153,14 @@ serve(async (req: Request) => {
       const startTime = new Date(today);
       startTime.setHours(match.hour, 0, 0, 0);
       
+      // Calculate prize distribution based on profit margin
+      const totalPossibleFees = match.entry_fee * match.slots;
+      const actualPrizePool = Math.floor(totalPossibleFees * (1 - profitMargin / 100));
+      
       // Calculate prize distribution
-      const firstPrize = Math.floor(match.prize_pool * 0.6);
-      const secondPrize = Math.floor(match.prize_pool * 0.3);
-      const thirdPrize = match.prize_pool - firstPrize - secondPrize;
+      const firstPrize = Math.floor(actualPrizePool * 0.6);
+      const secondPrize = Math.floor(actualPrizePool * 0.3);
+      const thirdPrize = actualPrizePool - firstPrize - secondPrize;
       
       return {
         type: match.type,
@@ -159,14 +168,15 @@ serve(async (req: Request) => {
         room_type: 'normal',
         slots: match.slots,
         entry_fee: match.entry_fee,
-        prize: match.prize_pool,
+        prize: actualPrizePool,
         first_prize: firstPrize,
         second_prize: secondPrize,
         third_prize: thirdPrize,
-        coins_per_kill: 5,
+        coins_per_kill: match.type === MATCH_TYPES.BATTLE_ROYALE ? 5 : 0,
         start_time: startTime.toISOString(),
         status: 'upcoming',
         created_by: superadmin.user_id,
+        slots_filled: 0,
         title: match.title
       };
     });

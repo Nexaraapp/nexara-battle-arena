@@ -3,9 +3,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { UserRole } from "./authUtils";
 
-/**
- * Set a user as an admin
- */
+export interface UserSearchResult {
+  id: string;
+  email: string;
+}
+
 export const setUserAsAdmin = async (
   userId: string | { email: string }, 
   byAdminId: string
@@ -15,20 +17,13 @@ export const setUserAsAdmin = async (
     
     // If email was provided instead of ID, look up the user ID
     if (typeof userId === 'object' && userId.email) {
-      // Look up user by email
-      const { data, error } = await supabase
-        .from('users')
-        .select('id')
-        .eq('email', userId.email)
-        .maybeSingle();
+      // Since we can't directly query auth.users table from client,
+      // we need to check in user_roles table or other tables to find the user ID
+      // This is a simplification - in production you might want to use a Supabase Edge Function
       
-      if (error || !data) {
-        console.error("Error looking up user:", error);
-        toast.error("User not found with that email");
-        return false;
-      }
-      
-      targetUserId = data.id;
+      // For this example, we'll prompt an error message to use IDs directly
+      toast.error("Email lookup not implemented. Please use user ID directly.");
+      return false;
     }
     
     if (!targetUserId) {

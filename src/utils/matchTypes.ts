@@ -60,3 +60,6 @@ export interface Match {
   third_prize?: number;
   coins_per_kill?: number;
 }
+
+// Export the types and interface
+export type { Match };

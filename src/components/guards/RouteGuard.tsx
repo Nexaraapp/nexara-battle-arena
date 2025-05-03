@@ -25,6 +25,7 @@ export const RouteGuard: React.FC<RouteGuardProps> = ({
   const navigate = useNavigate();
   const location = useLocation();
   const [isChecking, setIsChecking] = useState(true);
+  const [hasPermission, setHasPermission] = useState(false);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -51,6 +52,9 @@ export const RouteGuard: React.FC<RouteGuardProps> = ({
           navigate('/');
           return;
         }
+        
+        // All checks passed
+        setHasPermission(true);
       } catch (error) {
         console.error("Error in RouteGuard:", error);
         toast.error("An error occurred while checking permissions");
@@ -73,5 +77,5 @@ export const RouteGuard: React.FC<RouteGuardProps> = ({
   }
 
   // All checks passed, render children
-  return <>{children}</>;
+  return hasPermission ? <>{children}</> : null;
 };
