@@ -38,11 +38,11 @@ export const generateDefaultMatches = async (superadminId: string): Promise<bool
     // Create 5 matches at 5 PM, 6 PM, 7 PM, 8 PM, and 9 PM
     const matchTimes = [17, 18, 19, 20, 21];
     const matchTypes = [
-      { type: MatchType.BattleRoyale, mode: RoomMode.Solo, slots: 48 },
-      { type: MatchType.BattleRoyale, mode: RoomMode.Duo, slots: 48 },
-      { type: MatchType.BattleRoyale, mode: RoomMode.Squad, slots: 48 },
-      { type: MatchType.ClashSquad, mode: RoomMode.Squad, slots: 8 },
-      { type: MatchType.ClashSquad, mode: RoomMode.Squad, slots: 8 }
+      { type: MatchType.BattleRoyale, mode: RoomMode.Solo, slots: 48, coinsPerKill: 1 },
+      { type: MatchType.BattleRoyale, mode: RoomMode.Duo, slots: 48, coinsPerKill: 2 },
+      { type: MatchType.BattleRoyale, mode: RoomMode.Squad, slots: 48, coinsPerKill: 1 },
+      { type: MatchType.ClashSquad, mode: RoomMode.Squad, slots: 8, coinsPerKill: 0 },
+      { type: MatchType.ClashSquad, mode: RoomMode.Squad, slots: 8, coinsPerKill: 0 }
     ];
     
     // Skip times that already have matches
@@ -99,7 +99,8 @@ export const generateDefaultMatches = async (superadminId: string): Promise<bool
         room_type: RoomType.Normal,
         first_prize: firstPrize,
         second_prize: secondPrize,
-        third_prize: thirdPrize
+        third_prize: thirdPrize,
+        coins_per_kill: matchConfig.coinsPerKill
       });
       
       index++;

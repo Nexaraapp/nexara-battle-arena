@@ -56,6 +56,7 @@ serve(async (req) => {
         first_prize: 240,
         second_prize: 120,
         third_prize: 40,
+        coins_per_kill: 1
       },
       { 
         type: MatchType.ClashSquad, 
@@ -67,6 +68,7 @@ serve(async (req) => {
         first_prize: 360,
         second_prize: 180,
         third_prize: 60,
+        coins_per_kill: 0
       },
       { 
         type: MatchType.BattleRoyale, 
@@ -78,6 +80,7 @@ serve(async (req) => {
         first_prize: 480,
         second_prize: 240,
         third_prize: 80,
+        coins_per_kill: 2
       },
       { 
         type: MatchType.ClashSquad, 
@@ -89,6 +92,7 @@ serve(async (req) => {
         first_prize: 600,
         second_prize: 300,
         third_prize: 100,
+        coins_per_kill: 0
       },
     ];
 

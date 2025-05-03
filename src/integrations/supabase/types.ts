@@ -46,45 +46,69 @@ export type Database = {
       }
       matches: {
         Row: {
+          coins_per_kill: number | null
           created_at: string
           created_by: string
+          description: string | null
           entry_fee: number
+          first_prize: number | null
           id: string
+          mode: string | null
           prize: number
           room_id: string | null
           room_password: string | null
+          room_type: string | null
+          second_prize: number | null
           slots: number
           slots_filled: number
           start_time: string | null
           status: string
+          third_prize: number | null
+          title: string | null
           type: string
         }
         Insert: {
+          coins_per_kill?: number | null
           created_at?: string
           created_by: string
+          description?: string | null
           entry_fee: number
+          first_prize?: number | null
           id?: string
+          mode?: string | null
           prize: number
           room_id?: string | null
           room_password?: string | null
+          room_type?: string | null
+          second_prize?: number | null
           slots: number
           slots_filled?: number
           start_time?: string | null
           status: string
+          third_prize?: number | null
+          title?: string | null
           type: string
         }
         Update: {
+          coins_per_kill?: number | null
           created_at?: string
           created_by?: string
+          description?: string | null
           entry_fee?: number
+          first_prize?: number | null
           id?: string
+          mode?: string | null
           prize?: number
           room_id?: string | null
           room_password?: string | null
+          room_type?: string | null
+          second_prize?: number | null
           slots?: number
           slots_filled?: number
           start_time?: string | null
           status?: string
+          third_prize?: number | null
+          title?: string | null
           type?: string
         }
         Relationships: []
