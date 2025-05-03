@@ -61,5 +61,4 @@ export interface Match {
   coins_per_kill?: number;
 }
 
-// Export the types and interface
-export type { Match };
+// No need to re-export the interface since we already exported it above

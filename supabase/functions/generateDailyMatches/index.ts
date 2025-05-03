@@ -163,6 +163,7 @@ serve(async (req: Request) => {
       const thirdPrize = actualPrizePool - firstPrize - secondPrize;
       
       return {
+        title: match.title,
         type: match.type,
         mode: match.mode,
         room_type: 'normal',
@@ -176,8 +177,7 @@ serve(async (req: Request) => {
         start_time: startTime.toISOString(),
         status: 'upcoming',
         created_by: superadmin.user_id,
-        slots_filled: 0,
-        title: match.title
+        slots_filled: 0
       };
     });
     

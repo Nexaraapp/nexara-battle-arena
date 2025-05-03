@@ -42,6 +42,7 @@ const formSchema = z.object({
   second_prize: z.coerce.number().int().optional(),
   third_prize: z.coerce.number().int().optional(),
   coins_per_kill: z.coerce.number().int().min(0).optional(),
+  start_time: z.string().optional(),
 });
 
 interface MatchEditorProps {
@@ -72,6 +73,7 @@ export const MatchEditor = ({ match, isOpen, onClose, onSave }: MatchEditorProps
       second_prize: match?.second_prize || 0,
       third_prize: match?.third_prize || 0,
       coins_per_kill: match?.coins_per_kill || 0,
+      start_time: match?.start_time || new Date().toISOString(),
     },
   });
 
@@ -93,6 +95,7 @@ export const MatchEditor = ({ match, isOpen, onClose, onSave }: MatchEditorProps
         second_prize: match.second_prize || 0,
         third_prize: match.third_prize || 0,
         coins_per_kill: match.coins_per_kill || 0,
+        start_time: match.start_time,
       });
     } else {
       form.reset({
@@ -110,6 +113,7 @@ export const MatchEditor = ({ match, isOpen, onClose, onSave }: MatchEditorProps
         second_prize: 120,
         third_prize: 40,
         coins_per_kill: 5,
+        start_time: new Date().toISOString(),
       });
     }
   }, [match, form]);
@@ -126,7 +130,23 @@ export const MatchEditor = ({ match, isOpen, onClose, onSave }: MatchEditorProps
         // Update existing match
         const { error } = await supabase
           .from('matches')
-          .update(values)
+          .update({
+            title: values.title,
+            type: values.type,
+            entry_fee: values.entry_fee,
+            prize: values.prize,
+            slots: values.slots,
+            room_id: values.room_id,
+            room_password: values.room_password,
+            status: values.status,
+            mode: values.mode,
+            room_type: values.room_type,
+            first_prize: values.first_prize,
+            second_prize: values.second_prize,
+            third_prize: values.third_prize,
+            coins_per_kill: values.coins_per_kill,
+            start_time: values.start_time,
+          })
           .eq('id', match.id);
 
         if (error) throw error;
@@ -142,13 +162,27 @@ export const MatchEditor = ({ match, isOpen, onClose, onSave }: MatchEditorProps
           
         toast.success("Match updated successfully");
       } else {
-        // Create new match
+        // Create new match - ensure all required fields are provided
         const { error } = await supabase
           .from('matches')
           .insert({
-            ...values,
+            title: values.title,
+            type: values.type,
+            entry_fee: values.entry_fee,
+            prize: values.prize,
+            slots: values.slots,
+            room_id: values.room_id,
+            room_password: values.room_password,
+            status: values.status,
             created_by: user.id,
             slots_filled: 0,
+            mode: values.mode,
+            room_type: values.room_type,
+            first_prize: values.first_prize,
+            second_prize: values.second_prize,
+            third_prize: values.third_prize,
+            coins_per_kill: values.coins_per_kill,
+            start_time: values.start_time,
           });
 
         if (error) throw error;

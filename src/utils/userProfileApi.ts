@@ -4,150 +4,80 @@ import { supabase } from "@/integrations/supabase/client";
 export interface UserProfile {
   id: string;
   username?: string;
+  display_name?: string;
   avatar_url?: string;
-  game_id?: string;
-  social_links?: {
-    instagram?: string;
-    twitter?: string;
-    discord?: string;
-  };
+  bio?: string;
   created_at: string;
   updated_at: string;
 }
 
+/**
+ * Get a user's profile
+ * @param userId User ID to fetch profile for
+ */
 export const getUserProfile = async (userId: string): Promise<UserProfile | null> => {
   try {
-    const { data, error } = await supabase
-      .from('user_profiles')
-      .select('*')
-      .eq('id', userId)
-      .single();
-      
-    if (error) {
-      console.error("Error fetching user profile:", error);
+    // Since we don't have a user_profiles table yet, we'll return a simplified profile
+    // based on auth.users data that we can access
+    const { data: userData, error: userError } = await supabase.auth.admin.getUserById(userId);
+    
+    if (userError || !userData) {
+      console.error("Error fetching user:", userError);
       return null;
     }
     
-    return data;
+    // Create a temporary profile based on auth user data
+    const tempProfile: UserProfile = {
+      id: userData.user.id,
+      username: userData.user.email?.split('@')[0] || 'user',
+      display_name: userData.user.user_metadata?.name || userData.user.email?.split('@')[0] || 'User',
+      created_at: userData.user.created_at,
+      updated_at: userData.user.updated_at || userData.user.created_at,
+    };
+    
+    return tempProfile;
   } catch (error) {
     console.error("Error in getUserProfile:", error);
     return null;
   }
 };
 
+/**
+ * Update a user's profile
+ * @param userId User ID to update profile for
+ * @param profileData Profile data to update
+ */
 export const updateUserProfile = async (
-  userId: string,
-  profile: {
-    username?: string;
-    avatar_url?: string;
-    game_id?: string;
-    social_links?: {
-      instagram?: string;
-      twitter?: string;
-      discord?: string;
-    };
-  }
-): Promise<boolean> => {
+  userId: string, 
+  profileData: Partial<UserProfile>
+): Promise<UserProfile | null> => {
   try {
-    const { error } = await supabase
-      .from('user_profiles')
-      .update({
-        ...profile,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', userId);
-      
-    if (error) {
-      console.error("Error updating user profile:", error);
-      return false;
+    // Since we don't have a user_profiles table yet, we'll use auth metadata instead
+    const { data: userData, error: userError } = await supabase.auth.updateUser({
+      data: {
+        display_name: profileData.display_name,
+        bio: profileData.bio
+      }
+    });
+    
+    if (userError || !userData) {
+      console.error("Error updating user:", userError);
+      return null;
     }
     
-    return true;
+    // Create a temporary profile based on auth user data
+    const tempProfile: UserProfile = {
+      id: userData.user.id,
+      username: userData.user.email?.split('@')[0] || 'user',
+      display_name: userData.user.user_metadata?.display_name || userData.user.email?.split('@')[0] || 'User',
+      bio: userData.user.user_metadata?.bio,
+      created_at: userData.user.created_at,
+      updated_at: new Date().toISOString(),
+    };
+    
+    return tempProfile;
   } catch (error) {
     console.error("Error in updateUserProfile:", error);
-    return false;
-  }
-};
-
-export const createUserProfile = async (
-  userId: string,
-  profile: {
-    username?: string;
-    avatar_url?: string;
-    game_id?: string;
-  }
-): Promise<boolean> => {
-  try {
-    const { error } = await supabase
-      .from('user_profiles')
-      .insert({
-        id: userId,
-        username: profile.username,
-        avatar_url: profile.avatar_url,
-        game_id: profile.game_id,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      });
-      
-    if (error) {
-      console.error("Error creating user profile:", error);
-      return false;
-    }
-    
-    return true;
-  } catch (error) {
-    console.error("Error in createUserProfile:", error);
-    return false;
-  }
-};
-
-export const getUserStats = async (userId: string) => {
-  try {
-    // Get match entries
-    const { data: matchEntries, error: matchError } = await supabase
-      .from('match_entries')
-      .select('match_id')
-      .eq('user_id', userId);
-      
-    if (matchError) {
-      console.error("Error fetching match entries:", matchError);
-      return null;
-    }
-    
-    // Get transactions
-    const { data: transactions, error: transactionError } = await supabase
-      .from('transactions')
-      .select('*')
-      .eq('user_id', userId);
-      
-    if (transactionError) {
-      console.error("Error fetching transactions:", transactionError);
-      return null;
-    }
-    
-    // Calculate statistics
-    const matchesJoined = matchEntries?.length || 0;
-    
-    const winnings = transactions
-      ?.filter(t => t.type === 'match_prize' && t.status === 'completed')
-      .reduce((sum, t) => sum + t.amount, 0) || 0;
-      
-    const withdrawals = transactions
-      ?.filter(t => t.type === 'withdrawal' && t.status === 'completed')
-      .reduce((sum, t) => sum + Math.abs(t.amount), 0) || 0;
-      
-    const topups = transactions
-      ?.filter(t => t.type === 'topup' && t.status === 'completed')
-      .reduce((sum, t) => sum + t.amount, 0) || 0;
-    
-    return {
-      matchesJoined,
-      winnings,
-      withdrawals,
-      topups
-    };
-  } catch (error) {
-    console.error("Error in getUserStats:", error);
     return null;
   }
 };
