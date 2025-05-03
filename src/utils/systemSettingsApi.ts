@@ -26,3 +26,41 @@ export const getSystemSettings = async () => {
     };
   }
 };
+
+export const updateSystemSettings = async (
+  settings: {
+    requireAdForWithdrawal?: boolean;
+    matchProfitMargin?: number;
+  },
+  adminId: string
+) => {
+  try {
+    const { error } = await supabase
+      .from('system_settings')
+      .update({
+        require_ad_for_withdrawal: settings.requireAdForWithdrawal,
+        match_profit_margin: settings.matchProfitMargin,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', 1); // Assuming there's only one settings row with id=1
+      
+    if (error) {
+      console.error("Error updating system settings:", error);
+      return false;
+    }
+    
+    // Log the action
+    await supabase
+      .from('system_logs')
+      .insert({
+        admin_id: adminId,
+        action: 'System Settings Updated',
+        details: `Updated system settings: ${JSON.stringify(settings)}`
+      });
+      
+    return true;
+  } catch (error) {
+    console.error("Error in updateSystemSettings:", error);
+    return false;
+  }
+};

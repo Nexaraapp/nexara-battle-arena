@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Session, User } from '@supabase/supabase-js';
+import { UserRole, hasUserRole } from '@/utils/authUtils';
 
 export const useAuth = () => {
   const [loading, setLoading] = useState(true);
@@ -47,18 +48,17 @@ export const useAuth = () => {
     
     if (!user) return false;
 
-    try {
-      // Check admin role in user_roles table
-      const { data, error } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', user.id)
-        .in('role', ['admin', 'superadmin'])
-        .maybeSingle();
+    // Special case for dsouzaales06@gmail.com
+    if (user.email === 'dsouzaales06@gmail.com') {
+      setIsAdminCache(true);
+      return true;
+    }
 
-      const hasAdminRole = !error && data;
-      setIsAdminCache(!!hasAdminRole);
-      return !!hasAdminRole;
+    try {
+      const result = await hasUserRole(user.id, UserRole.ADMIN) || 
+                     await hasUserRole(user.id, UserRole.SUPERADMIN);
+      setIsAdminCache(result);
+      return result;
     } catch (error) {
       console.error('Error checking admin role:', error);
       return false;
@@ -72,18 +72,16 @@ export const useAuth = () => {
     
     if (!user) return false;
 
-    try {
-      // Check superadmin role in user_roles table
-      const { data, error } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', user.id)
-        .eq('role', 'superadmin')
-        .maybeSingle();
+    // Special case for dsouzaales06@gmail.com
+    if (user.email === 'dsouzaales06@gmail.com') {
+      setIsSuperadminCache(true);
+      return true;
+    }
 
-      const hasSuperadminRole = !error && data;
-      setIsSuperadminCache(!!hasSuperadminRole);
-      return !!hasSuperadminRole;
+    try {
+      const result = await hasUserRole(user.id, UserRole.SUPERADMIN);
+      setIsSuperadminCache(result);
+      return result;
     } catch (error) {
       console.error('Error checking superadmin role:', error);
       return false;

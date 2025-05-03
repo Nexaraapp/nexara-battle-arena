@@ -1,15 +1,15 @@
 
 export const COIN_PACKS = [
-  { id: 'pack1', coins: 100, price: 100 },
-  { id: 'pack2', coins: 250, price: 240 },
-  { id: 'pack3', coins: 500, price: 450 },
-  { id: 'pack4', coins: 1000, price: 850 },
-  { id: 'pack5', coins: 2500, price: 2000 },
+  { id: 'pack1', coins: 20, price: 20 },
+  { id: 'pack2', coins: 30, price: 35 },
+  { id: 'pack3', coins: 50, price: 60 },
+  { id: 'pack4', coins: 85, price: 80 },
+  { id: 'pack5', coins: 110, price: 100 },
 ];
 
 export const WITHDRAWAL_TIERS = [
-  { coins: 100, firstFivePayoutInr: 100, regularPayoutInr: 95 },
-  { coins: 250, firstFivePayoutInr: 250, regularPayoutInr: 240 },
-  { coins: 500, firstFivePayoutInr: 500, regularPayoutInr: 490 },
-  { coins: 1000, firstFivePayoutInr: 1000, regularPayoutInr: 960 },
+  { coins: 30, firstFivePayoutInr: 26, regularPayoutInr: 24 },
+  { coins: 60, firstFivePayoutInr: 52, regularPayoutInr: 48 },
+  { coins: 90, firstFivePayoutInr: 78, regularPayoutInr: 72 },
+  { coins: 120, firstFivePayoutInr: 104, regularPayoutInr: 96 },
 ];
