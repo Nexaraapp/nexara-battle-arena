@@ -1,7 +1,7 @@
 
 // Import types from the new location if needed
 // Note: Edge functions don't share code with the frontend, so they should have their own implementation
-import { serve } from 'std/server';
+import { serve } from "std/server";
 import { corsHeaders } from '../_shared/cors.ts';
 
 // Define match types for the edge function
@@ -33,7 +33,7 @@ serve(async (req) => {
   }
 
   try {
-    const { requested_by } = await req.json()
+    const { requested_by } = await req.json();
 
     if (!requested_by) {
       return new Response(
@@ -42,9 +42,10 @@ serve(async (req) => {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         }
-      )
+      );
     }
 
+    // Match definitions with correct type values that match the database constraint
     const matches = [
       { 
         type: MatchType.BattleRoyale, 
@@ -96,8 +97,8 @@ serve(async (req) => {
       },
     ];
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
     if (!supabaseUrl || !supabaseKey) {
       throw new Error('Missing Supabase URL or key');
@@ -135,7 +136,7 @@ serve(async (req) => {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           status: 200,
         }
-      )
+      );
     }
 
     // Get system settings for profit margin
@@ -215,12 +216,12 @@ serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200,
       }
-    )
+    );
   } catch (error) {
-    console.error(error)
+    console.error(error);
     return new Response(JSON.stringify({ error: error.message }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 400,
-    })
+    });
   }
-})
+});

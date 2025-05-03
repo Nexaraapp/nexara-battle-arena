@@ -1,5 +1,5 @@
 
-// Define match types and constants
+// Define types for match-related operations
 export enum MatchType {
   BattleRoyale = "battle_royale",
   ClashSolo = "clash_solo",
@@ -28,35 +28,25 @@ export enum MatchStatus {
   Cancelled = "cancelled"
 }
 
-// Define the comprehensive Match interface that combines both DB schema properties
 export interface Match {
   id: string;
-  
-  // Properties from the dashboard usage
   type: string;
-  slots: number;
-  slots_filled: number;
-  entry_fee: number;
-  prize: number;
-  room_id?: string;
-  room_password?: string;
-  created_by?: string;
-  created_at: string;
-  start_time: string;
-  status: string;
   mode?: string;
   room_type?: string;
-  
-  // Properties from the API schema
-  title?: string;
-  description?: string;
-  end_time?: string;
-  max_participants?: number;
-  current_participants?: number;
-  game_id?: string;
-  updated_at?: string;
-  first_prize?: number;
-  second_prize?: number;
-  third_prize?: number;
-  coins_per_kill?: number;
+  entry_fee: number;
+  prize: number;
+  slots: number;
+  slots_filled: number;
+  created_at: string;
+  created_by: string;
+  start_time: string | null;
+  room_id?: string | null;
+  room_password?: string | null;
+  status: string;
+  first_prize?: number | null;
+  second_prize?: number | null;
+  third_prize?: number | null;
+  coins_per_kill?: number | null;
+  title?: string | null;
+  description?: string | null;
 }
