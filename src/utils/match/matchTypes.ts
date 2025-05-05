@@ -52,7 +52,7 @@ export interface DatabaseMatch {
 
 // PlayFab Queue Stats
 export interface QueueStats {
-  queueName: string;
+  queueName: MatchType;
   playersInQueue: number;
   estimatedWaitTime: number;
   isActive: boolean;

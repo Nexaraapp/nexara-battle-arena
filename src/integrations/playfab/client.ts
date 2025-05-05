@@ -3,7 +3,7 @@
 // This is a simplified client for PlayFab API integration
 
 // Replace these with your actual PlayFab values
-const PLAYFAB_TITLE_ID = "YOUR_PLAYFAB_TITLE_ID"; // To be configured
+const PLAYFAB_TITLE_ID = "192CC5"; // From your PlayFab account
 const PLAYFAB_API_BASE = `https://${PLAYFAB_TITLE_ID}.playfabapi.com`;
 
 interface PlayFabRequest {
