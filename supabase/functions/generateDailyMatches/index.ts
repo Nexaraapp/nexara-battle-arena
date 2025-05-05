@@ -1,21 +1,20 @@
 
 // Import types from the new location if needed
-// Note: Edge functions don't share code with the frontend, so they should have their own implementation
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders } from '../_shared/cors.ts';
 
-// Define match types for the edge function
+// Define match type enums that exactly match the database constraints
 enum MatchType {
   BattleRoyale = "battle_royale",
-  ClashSolo = "clash_solo",
-  ClashDuo = "clash_duo",
-  ClashSquad = "clash_squad"
+  ClashSquad = "clash_squad",
+  OneVOne = "1v1"  // Added this type to match the requested 1v1 matches
 }
 
 enum RoomMode {
   Solo = "solo",
   Duo = "duo",
-  Squad = "squad"
+  Squad = "squad",
+  OneVOne = "1v1"  // Added this mode for 1v1 matches
 }
 
 enum RoomType {
@@ -46,55 +45,68 @@ serve(async (req) => {
     }
 
     // Match definitions with correct type values that match the database constraint
+    // Using 1v1 matches as requested
     const matches = [
       { 
-        type: "battle_royale", // Use raw string to match DB constraint
+        type: "1v1",  // Use the correct type that matches database constraint
         entry_fee: 10, 
-        prize: 400, 
-        slots: 48, 
-        mode: "solo", 
+        prize: 18,    // Updated to 18 as specified
+        slots: 2,     // 1v1 matches have 2 slots
+        mode: "1v1", 
         room_type: "normal",
-        first_prize: 240,
-        second_prize: 120,
-        third_prize: 40,
-        coins_per_kill: 1
-      },
-      { 
-        type: "clash_squad", 
-        entry_fee: 15, 
-        prize: 600, 
-        slots: 32, 
-        mode: "squad", 
-        room_type: "normal",
-        first_prize: 360,
-        second_prize: 180,
-        third_prize: 60,
+        first_prize: 18, // Winner gets all for 1v1
+        second_prize: 0,
+        third_prize: 0,
         coins_per_kill: 0
       },
       { 
-        type: "battle_royale", 
-        entry_fee: 20, 
-        prize: 800, 
-        slots: 48, 
-        mode: "duo", 
+        type: "1v1", 
+        entry_fee: 10, 
+        prize: 18, 
+        slots: 2, 
+        mode: "1v1", 
         room_type: "normal",
-        first_prize: 480,
-        second_prize: 240,
-        third_prize: 80,
-        coins_per_kill: 2
-      },
-      { 
-        type: "clash_squad", 
-        entry_fee: 25, 
-        prize: 1000, 
-        slots: 32, 
-        mode: "squad", 
-        room_type: "normal",
-        first_prize: 600,
-        second_prize: 300,
-        third_prize: 100,
+        first_prize: 18,
+        second_prize: 0,
+        third_prize: 0,
         coins_per_kill: 0
       },
+      { 
+        type: "1v1", 
+        entry_fee: 10, 
+        prize: 18, 
+        slots: 2, 
+        mode: "1v1", 
+        room_type: "normal",
+        first_prize: 18,
+        second_prize: 0,
+        third_prize: 0,
+        coins_per_kill: 0
+      },
+      { 
+        type: "1v1", 
+        entry_fee: 10, 
+        prize: 18, 
+        slots: 2, 
+        mode: "1v1", 
+        room_type: "normal",
+        first_prize: 18,
+        second_prize: 0,
+        third_prize: 0,
+        coins_per_kill: 0
+      },
+      { 
+        type: "1v1", 
+        entry_fee: 10, 
+        prize: 18, 
+        slots: 2, 
+        mode: "1v1", 
+        room_type: "normal",
+        first_prize: 18,
+        second_prize: 0,
+        third_prize: 0,
+        coins_per_kill: 0
+      }
     ];
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
@@ -126,11 +138,17 @@ serve(async (req) => {
       
     if (checkError) {
       console.error("Error checking existing matches:", checkError);
-      throw new Error("Failed to check existing matches");
+      return new Response(
+        JSON.stringify({ error: "Failed to check existing matches" }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
     }
     
     // If we already have matches for today, don't create more duplicates
-    if (existingMatches && existingMatches.length >= 4) {
+    if (existingMatches && existingMatches.length >= 5) {
       console.log("Default matches already generated for today");
       return new Response(
         JSON.stringify({ message: 'Daily matches already generated', count: 0 }),
@@ -152,8 +170,8 @@ serve(async (req) => {
     let createdCount = 0;
     const matchesToCreate = [];
     
-    // Calculate start times for matches (5 PM, 6 PM, 7 PM, 8 PM)
-    const matchTimes = [17, 18, 19, 20];
+    // Calculate start times for matches (5 PM, 6 PM, 7 PM, 8 PM, 9 PM)
+    const matchTimes = [17, 18, 19, 20, 21];
     
     // Skip times that already have matches
     const existingTimes = new Set();
@@ -190,13 +208,20 @@ serve(async (req) => {
 
     // Insert new matches
     if (matchesToCreate.length > 0) {
-      const { error: insertError } = await supabaseClient
+      const { data, error: insertError } = await supabaseClient
         .from('matches')
-        .insert(matchesToCreate);
+        .insert(matchesToCreate)
+        .select();
         
       if (insertError) {
         console.error("Error creating default matches:", insertError);
-        throw new Error("Failed to create matches: " + insertError.message);
+        return new Response(
+          JSON.stringify({ error: "Failed to create matches: " + insertError.message }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        );
       }
       
       // Log the action
@@ -223,7 +248,7 @@ serve(async (req) => {
     console.error(error);
     return new Response(JSON.stringify({ error: error.message }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 400,
+      status: 500,
     });
   }
 });

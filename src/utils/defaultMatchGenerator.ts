@@ -36,12 +36,14 @@ export const generateDefaultMatches = async (superadminId: string): Promise<bool
     
     // Create 5 matches at 5 PM, 6 PM, 7 PM, 8 PM, and 9 PM
     const matchTimes = [17, 18, 19, 20, 21];
+    
+    // Define match configurations for 1v1 matches
     const matchTypes = [
-      { type: "battle_royale", mode: "solo", slots: 48, coinsPerKill: 1 },
-      { type: "battle_royale", mode: "duo", slots: 48, coinsPerKill: 2 },
-      { type: "battle_royale", mode: "squad", slots: 48, coinsPerKill: 1 },
-      { type: "clash_squad", mode: "squad", slots: 8, coinsPerKill: 0 },
-      { type: "clash_squad", mode: "squad", slots: 8, coinsPerKill: 0 }
+      { type: "1v1", mode: "1v1", slots: 2, coinsPerKill: 0 },
+      { type: "1v1", mode: "1v1", slots: 2, coinsPerKill: 0 },
+      { type: "1v1", mode: "1v1", slots: 2, coinsPerKill: 0 },
+      { type: "1v1", mode: "1v1", slots: 2, coinsPerKill: 0 },
+      { type: "1v1", mode: "1v1", slots: 2, coinsPerKill: 0 }
     ];
     
     // Skip times that already have matches
@@ -73,17 +75,15 @@ export const generateDefaultMatches = async (superadminId: string): Promise<bool
       // Calculate start time for this match
       const startTime = new Date(today.getFullYear(), today.getMonth(), today.getDate(), hour, 0, 0).toISOString();
       
-      // Calculate entry fee and prize pool
-      // For simplicity, use entry fee of 10 coins for all matches
+      // Entry fee fixed at 10 coins
       const entryFee = 10;
-      // Prize pool is entry fee * slots * (1 - profit margin / 100)
-      const totalPossibleFees = entryFee * matchConfig.slots;
-      const prizePool = Math.floor(totalPossibleFees * (1 - profitMargin / 100));
+      // Prize is 18 coins
+      const prizePool = 18;
       
-      // Calculate prize distribution (50% first, 30% second, 20% third)
-      const firstPrize = Math.floor(prizePool * 0.5);
-      const secondPrize = Math.floor(prizePool * 0.3);
-      const thirdPrize = prizePool - firstPrize - secondPrize; // Ensure total adds up exactly
+      // For 1v1, winner takes all
+      const firstPrize = prizePool;
+      const secondPrize = 0;
+      const thirdPrize = 0;
       
       matchesToCreate.push({
         type: matchConfig.type,
