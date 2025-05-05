@@ -1,4 +1,5 @@
 
+
 // Import types from the new location if needed
 // Note: Edge functions don't share code with the frontend, so they should have their own implementation
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -104,7 +105,8 @@ serve(async (req) => {
       throw new Error('Missing Supabase URL or key');
     }
 
-    const { createClient } = await import('@supabase/supabase-js');
+    // Use URL-based import for @supabase/supabase-js to fix the error
+    const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2.32.0");
     const supabaseClient = createClient(supabaseUrl, supabaseKey, {
       auth: {
         autoRefreshToken: false,
@@ -226,3 +228,4 @@ serve(async (req) => {
     });
   }
 });
+
