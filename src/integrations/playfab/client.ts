@@ -1,4 +1,3 @@
-
 // PlayFab API client
 // This is a simplified client for PlayFab API integration
 
@@ -199,6 +198,55 @@ export class PlayFabClient {
       endpoint: '/Admin/GetMatchmakingQueueStatistics',
       body: {
         QueueName: queueName
+      }
+    });
+  }
+
+  /**
+   * Update match with room information
+   */
+  static async updateMatchWithRoomInfo(
+    matchId: string,
+    roomId: string,
+    roomPassword: string
+  ): Promise<PlayFabResponse> {
+    return this.request({
+      endpoint: '/Client/UpdateMatchmakingTicket',
+      body: {
+        MatchId: matchId,
+        RoomId: roomId,
+        RoomPassword: roomPassword
+      }
+    });
+  }
+
+  /**
+   * Get match details including room information
+   */
+  static async getMatchDetails(matchId: string): Promise<PlayFabResponse> {
+    return this.request({
+      endpoint: '/Client/GetMatchmakingTicket',
+      body: {
+        MatchId: matchId
+      }
+    });
+  }
+  
+  /**
+   * Start game session with specific room information
+   */
+  static async startGameSession(
+    matchId: string,
+    roomId: string,
+    roomPassword: string
+  ): Promise<PlayFabResponse> {
+    return this.request({
+      endpoint: '/Client/StartGameSession',
+      body: {
+        TitleId: this.titleId,
+        MatchId: matchId,
+        RoomId: roomId,
+        RoomPassword: roomPassword
       }
     });
   }
