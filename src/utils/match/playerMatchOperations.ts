@@ -1,5 +1,7 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { MatchStatus, MatchType } from "./matchTypes";
 
 /**
  * Allow a player to join a match
@@ -166,5 +168,112 @@ export const getPlayerMatches = async (userId: string): Promise<string[]> => {
   } catch (error) {
     console.error("Error in getPlayerMatches:", error);
     return [];
+  }
+};
+
+/**
+ * PlayFab Integration - Join a matchmaking queue
+ */
+export const joinMatchQueue = async (
+  queueType: MatchType,
+  userId: string,
+  entryFee: number
+): Promise<{ success: boolean; ticketId?: string; message?: string }> => {
+  try {
+    console.log(`User ${userId} joining queue ${queueType} with entry fee: ${entryFee}`);
+    // TODO: Implement PlayFab matchmaking request
+    // This would use PlayFab's CreateMatchmakingTicket API
+    
+    // For now, return a mock successful response
+    toast.success("Joined matchmaking queue");
+    return {
+      success: true,
+      ticketId: `mock_ticket_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+      message: "Joined matchmaking queue successfully"
+    };
+  } catch (error) {
+    console.error("Error joining match queue:", error);
+    toast.error("Failed to join matchmaking queue");
+    return {
+      success: false,
+      message: "Failed to join matchmaking queue"
+    };
+  }
+};
+
+/**
+ * PlayFab Integration - Cancel matchmaking request
+ */
+export const cancelMatchmaking = async (
+  userId: string,
+  ticketId: string
+): Promise<boolean> => {
+  try {
+    console.log(`Cancelling matchmaking for user ${userId}, ticket ${ticketId}`);
+    // TODO: Implement PlayFab cancel matchmaking
+    // This would use PlayFab's CancelMatchmakingTicket API
+    
+    toast.success("Matchmaking cancelled");
+    return true;
+  } catch (error) {
+    console.error("Error cancelling matchmaking:", error);
+    toast.error("Failed to cancel matchmaking");
+    return false;
+  }
+};
+
+/**
+ * PlayFab Integration - Check status of a matchmaking ticket
+ */
+export const checkMatchmakingStatus = async (
+  userId: string,
+  ticketId: string
+): Promise<{ status: MatchStatus; matchId?: string }> => {
+  try {
+    console.log(`Checking status for ticket ${ticketId}`);
+    // TODO: Implement PlayFab matchmaking status check
+    // This would use PlayFab's GetMatchmakingTicket API
+    
+    // For testing, we'll simulate a match being found after some time
+    const shouldFindMatch = Math.random() > 0.7;
+    
+    if (shouldFindMatch) {
+      return {
+        status: MatchStatus.InProgress,
+        matchId: `match_${Date.now()}`
+      };
+    }
+    
+    return {
+      status: MatchStatus.Matching
+    };
+  } catch (error) {
+    console.error("Error checking matchmaking status:", error);
+    return {
+      status: MatchStatus.Cancelled
+    };
+  }
+};
+
+/**
+ * PlayFab Integration - Submit match results
+ */
+export const submitMatchResults = async (
+  matchId: string,
+  userId: string,
+  isWinner: boolean,
+  score?: number
+): Promise<boolean> => {
+  try {
+    console.log(`Submitting match results for ${matchId}, user ${userId}, winner: ${isWinner}`);
+    // TODO: Implement PlayFab match result submission
+    // This would use PlayFab's ReportMatchResult API
+    
+    toast.success("Match results submitted");
+    return true;
+  } catch (error) {
+    console.error("Error submitting match results:", error);
+    toast.error("Failed to submit match results");
+    return false;
   }
 };
