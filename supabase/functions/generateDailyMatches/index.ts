@@ -1,7 +1,7 @@
 
 // Import types from the new location if needed
 // Note: Edge functions don't share code with the frontend, so they should have their own implementation
-import { serve } from "std/server";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders } from '../_shared/cors.ts';
 
 // Define match types for the edge function
@@ -104,7 +104,8 @@ serve(async (req) => {
       throw new Error('Missing Supabase URL or key');
     }
 
-    const supabaseClient = (await import('@supabase/supabase-js')).createClient(supabaseUrl, supabaseKey, {
+    const { createClient } = await import('@supabase/supabase-js');
+    const supabaseClient = createClient(supabaseUrl, supabaseKey, {
       auth: {
         autoRefreshToken: false,
         persistSession: false
