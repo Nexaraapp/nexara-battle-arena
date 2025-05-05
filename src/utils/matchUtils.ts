@@ -5,7 +5,8 @@ import type {
   Match, 
   MatchType, 
   MatchStatus,
-  QueueStats 
+  QueueStats,
+  DatabaseMatch
 } from './match/matchTypes';
 
 import {
@@ -22,10 +23,13 @@ import {
 } from './match/adminMatchOperations';
 
 import {
+  joinMatch,
   joinMatchQueue,
   cancelMatchmaking,
   checkMatchmakingStatus,
-  submitMatchResults
+  submitMatchResults,
+  hasPlayerJoinedMatch,
+  getPlayerMatches
 } from './match/playerMatchOperations';
 
 // Re-export everything for backward compatibility
@@ -35,6 +39,7 @@ export {
   type MatchType,
   type MatchStatus,
   type QueueStats,
+  type DatabaseMatch,
   
   // Queries
   getActiveMatches,
@@ -48,6 +53,9 @@ export {
   configureMatchmakingRules,
   
   // Player operations
+  joinMatch,
+  hasPlayerJoinedMatch,
+  getPlayerMatches,
   joinMatchQueue,
   cancelMatchmaking,
   checkMatchmakingStatus,

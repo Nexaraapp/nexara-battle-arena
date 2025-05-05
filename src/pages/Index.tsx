@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Gamepad, Trophy, Star, ArrowRight, Loader } from "lucide-react";
@@ -5,12 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
-import { Match, MatchType, MatchStatus, joinMatch } from "@/utils/matchUtils";
 import { toast } from "sonner";
+import { DatabaseMatch, joinMatch } from "@/utils/matchUtils";
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState("battle-royale");
-  const [matches, setMatches] = useState<Match[]>([]);
+  const [matches, setMatches] = useState<DatabaseMatch[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [stats, setStats] = useState({
     activeTournaments: 0,
@@ -63,7 +64,7 @@ const Index = () => {
         toast.error("Failed to load matches");
         setMatches([]);
       } else {
-        setMatches(data as Match[] || []);
+        setMatches(data as DatabaseMatch[] || []);
       }
     } catch (error) {
       console.error("Error in fetchMatches:", error);

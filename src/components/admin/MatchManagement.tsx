@@ -6,7 +6,7 @@ import { MatchType, QueueStats } from '@/utils/match/matchTypes';
 import { getAllQueueStats, getPlayFabMatchmakingStats } from '@/utils/match';
 import { MatchActions } from './matches/MatchActions';
 import { Button } from '@/components/ui/button';
-import { ArrowUpDown, Users } from 'lucide-react';
+import { ArrowUpDown, Users, ExternalLink } from 'lucide-react';
 
 export const MatchManagement = () => {
   const [queueStats, setQueueStats] = useState<QueueStats[]>([]);
@@ -47,6 +47,10 @@ export const MatchManagement = () => {
         return queueName;
     }
   };
+  
+  const openPlayFabMatchmakingDocs = () => {
+    window.open('https://docs.microsoft.com/en-us/gaming/playfab/features/multiplayer/matchmaking/', '_blank');
+  };
 
   return (
     <Card>
@@ -61,14 +65,41 @@ export const MatchManagement = () => {
             Match generation has been replaced with real-time PlayFab matchmaking.
             Configure queue settings and rules through the PlayFab developer portal.
           </p>
-          <Button 
-            onClick={() => window.open('https://docs.microsoft.com/en-us/gaming/playfab/features/multiplayer/matchmaking/', '_blank')}
-            variant="outline" 
-            size="sm"
-          >
-            Learn More
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              onClick={openPlayFabMatchmakingDocs}
+              variant="outline" 
+              size="sm"
+            >
+              Documentation
+            </Button>
+            <Button
+              onClick={() => fetchMatchmakingStats()}
+              variant="outline"
+              size="sm"
+              disabled={isLoading}
+            >
+              {isLoading ? "Refreshing..." : "Refresh Stats"}
+            </Button>
+          </div>
         </div>
+        
+        {overallStats && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div className="bg-nexara-accent/5 p-4 rounded-lg">
+              <p className="text-sm text-gray-400">Active Queues</p>
+              <p className="text-xl font-bold">{overallStats.activeQueues || 0}</p>
+            </div>
+            <div className="bg-nexara-accent/5 p-4 rounded-lg">
+              <p className="text-sm text-gray-400">Players in Queues</p>
+              <p className="text-xl font-bold">{overallStats.totalPlayersInQueues || 0}</p>
+            </div>
+            <div className="bg-nexara-accent/5 p-4 rounded-lg">
+              <p className="text-sm text-gray-400">Avg. Wait Time</p>
+              <p className="text-xl font-bold">{overallStats.averageWaitTime || 0}s</p>
+            </div>
+          </div>
+        )}
         
         <h3 className="font-semibold">Queue Statistics</h3>
         
@@ -105,6 +136,19 @@ export const MatchManagement = () => {
                 </CardContent>
               </Card>
             ))}
+            
+            <Card className="bg-muted/50 border-dashed border-2">
+              <CardContent className="p-4 flex flex-col items-center justify-center h-full">
+                <Button
+                  variant="ghost"
+                  className="w-full h-full flex flex-col p-6"
+                  onClick={() => window.open('https://developer.playfab.com/en-US/toolsets/matchmaking-ruleset', '_blank')}
+                >
+                  <ExternalLink className="h-6 w-6 mb-2 text-nexara-accent/70" />
+                  <span>Add Queue in PlayFab</span>
+                </Button>
+              </CardContent>
+            </Card>
           </div>
         )}
       </CardContent>

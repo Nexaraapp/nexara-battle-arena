@@ -15,6 +15,7 @@ export enum MatchStatus {
   TimedOut = "timed_out"
 }
 
+// PlayFab Match type (used for matchmaking)
 export interface Match {
   id: string;
   type: MatchType;
@@ -25,6 +26,28 @@ export interface Match {
   created_at: string;
   completed_at?: string;
   winner_id?: string;
+}
+
+// Legacy Database Match type (for compatibility with existing database)
+export interface DatabaseMatch {
+  id: string;
+  entry_fee: number;
+  prize: number;
+  slots: number;
+  slots_filled: number;
+  created_by: string;
+  created_at: string;
+  start_time?: string;
+  status: string;
+  type: string;
+  title?: string;
+  description?: string;
+  mode?: string;
+  room_id?: string;
+  room_password?: string;
+  first_prize?: number;
+  second_prize?: number;
+  third_prize?: number;
 }
 
 // PlayFab Queue Stats

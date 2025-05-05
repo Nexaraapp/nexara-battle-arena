@@ -11,16 +11,38 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Info, Settings, BarChart3, RefreshCw, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
-import { configureMatchmakingRules, getPlayFabMatchmakingStats } from '@/utils/match/adminMatchOperations';
+import { getPlayFabMatchmakingStats } from '@/utils/match/adminMatchOperations';
+import PlayFabClient from '@/integrations/playfab/client';
+import { useState } from 'react';
 
 export const MatchActions = () => {
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
   const refreshMatchmakingStats = async () => {
     try {
+      setIsRefreshing(true);
+      
+      // Refresh stats for all queues
+      const queueTypes = ["one_vs_one", "four_vs_four", "battle_royale_26_50"];
+      const results = await Promise.all(
+        queueTypes.map(queue => PlayFabClient.getMatchmakingStats(queue))
+      );
+      
+      const allSuccessful = results.every(r => r.success);
+      
+      if (allSuccessful) {
+        toast.success("Matchmaking statistics refreshed");
+      } else {
+        toast.error("Some queue statistics could not be refreshed");
+      }
+      
+      // Also get the overall matchmaking stats
       await getPlayFabMatchmakingStats();
-      toast.success("Matchmaking statistics refreshed");
     } catch (error) {
       console.error("Error refreshing matchmaking stats:", error);
       toast.error("Failed to refresh matchmaking statistics");
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
@@ -38,9 +60,13 @@ export const MatchActions = () => {
 
   return (
     <div className="flex gap-2">
-      <Button variant="outline" onClick={refreshMatchmakingStats}>
-        <RefreshCw className="mr-2 h-4 w-4" />
-        Refresh Stats
+      <Button 
+        variant="outline" 
+        onClick={refreshMatchmakingStats}
+        disabled={isRefreshing}
+      >
+        <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+        {isRefreshing ? 'Refreshing...' : 'Refresh Stats'}
       </Button>
       
       <DropdownMenu>

@@ -16,6 +16,7 @@ interface MatchmakingQueueProps {
   prize: number;
   estimatedWaitTime?: number;
   playersInQueue?: number;
+  onJoinQueue?: (ticketId: string) => void;
 }
 
 export const MatchmakingQueue = ({
@@ -25,7 +26,8 @@ export const MatchmakingQueue = ({
   entryFee,
   prize,
   estimatedWaitTime = 0,
-  playersInQueue = 0
+  playersInQueue = 0,
+  onJoinQueue
 }: MatchmakingQueueProps) => {
   const [isJoining, setIsJoining] = useState(false);
   const { user } = useAuth();
@@ -38,9 +40,16 @@ export const MatchmakingQueue = ({
     
     setIsJoining(true);
     try {
-      await joinMatchQueue(queueType, user.id, entryFee);
-      // In a real implementation, we would store the ticket ID and start polling
-      // for match status
+      const result = await joinMatchQueue(queueType, user.id, entryFee);
+      
+      if (result.success && result.ticketId) {
+        if (onJoinQueue) {
+          onJoinQueue(result.ticketId);
+        }
+        toast.success("Joined matchmaking queue");
+      } else {
+        toast.error(result.message || "Failed to join matchmaking");
+      }
     } catch (error) {
       console.error("Error joining queue:", error);
       toast.error("Failed to join matchmaking queue");

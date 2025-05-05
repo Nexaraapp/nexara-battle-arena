@@ -39,6 +39,7 @@ export const MatchmakingStatus = ({
           if (onMatchFound) onMatchFound(result.matchId);
           clearInterval(statusChecker);
           clearInterval(timer);
+          toast.success("Match found! Joining game...");
         } else if (
           result.status === MatchStatus.Cancelled || 
           result.status === MatchStatus.TimedOut
@@ -49,6 +50,8 @@ export const MatchmakingStatus = ({
           
           if (result.status === MatchStatus.TimedOut) {
             toast.error("Matchmaking timed out. Please try again.");
+          } else {
+            toast.info("Matchmaking cancelled.");
           }
         }
       } catch (error) {
@@ -65,10 +68,16 @@ export const MatchmakingStatus = ({
   const handleCancel = async () => {
     setIsLoading(true);
     try {
-      await cancelMatchmaking(userId, ticketId);
-      if (onCancel) onCancel();
+      const success = await cancelMatchmaking(userId, ticketId);
+      if (success && onCancel) {
+        onCancel();
+        toast.info("Matchmaking cancelled");
+      } else if (!success) {
+        toast.error("Failed to cancel matchmaking");
+      }
     } catch (error) {
       console.error("Error cancelling matchmaking:", error);
+      toast.error("Failed to cancel matchmaking");
     } finally {
       setIsLoading(false);
     }

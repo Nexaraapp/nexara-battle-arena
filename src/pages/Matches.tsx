@@ -10,6 +10,7 @@ import AdDisplay from "@/components/ads/AdDisplay";
 import { AdPlacement, shouldShowAdsToUser } from "@/utils/adUtils";
 import { MatchmakingQueue } from "@/components/matchmaking/MatchmakingQueue";
 import { MatchmakingStatus } from "@/components/matchmaking/MatchmakingStatus";
+import { MatchResults } from "@/components/matchmaking/MatchResults";
 import { MatchType } from "@/utils/match/matchTypes";
 import { getAllQueueStats } from "@/utils/match/matchQueries";
 
@@ -20,6 +21,8 @@ const Matches = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [queueStats, setQueueStats] = useState<any[]>([]);
   const [activeMatchmakingTicket, setActiveMatchmakingTicket] = useState<string | null>(null);
+  const [activeMatchId, setActiveMatchId] = useState<string | null>(null);
+  const [matchmakingState, setMatchmakingState] = useState<'idle' | 'queuing' | 'matched'>('idle');
 
   const { user } = useAuth();
   const [isPremiumUser, setIsPremiumUser] = useState(false);
@@ -90,22 +93,148 @@ const Matches = () => {
   };
 
   const handleMatchFound = (matchId: string) => {
-    // In a real implementation, this would redirect to the game or show game details
-    console.log(`Match found! ID: ${matchId}`);
-    setActiveMatchmakingTicket(null);
+    setActiveMatchId(matchId);
+    setMatchmakingState('matched');
   };
 
   const handleCancelMatchmaking = () => {
     setActiveMatchmakingTicket(null);
+    setMatchmakingState('idle');
   };
 
-  // This is a mock function that would generate a ticket ID in a real implementation
-  const handleJoinQueue = (queueType: MatchType) => {
-    if (!user) return;
-    
-    // In a real implementation, this would be returned from the PlayFab API
-    const mockTicketId = `ticket_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    setActiveMatchmakingTicket(mockTicketId);
+  const handleJoinQueue = (ticketId: string) => {
+    setActiveMatchmakingTicket(ticketId);
+    setMatchmakingState('queuing');
+  };
+
+  const handleMatchResultsSubmitted = () => {
+    setActiveMatchId(null);
+    setMatchmakingState('idle');
+    // Refresh wallet balance to show any winnings
+    if (user) {
+      fetchWalletBalance(user.id);
+    }
+  };
+
+  const renderMatchmakingState = () => {
+    if (!user) {
+      return (
+        <div className="text-center p-8">
+          <p>Please login to join matchmaking</p>
+        </div>
+      );
+    }
+
+    switch (matchmakingState) {
+      case 'queuing':
+        return (
+          <div className="max-w-md mx-auto">
+            <MatchmakingStatus 
+              userId={user.id}
+              ticketId={activeMatchmakingTicket || ''}
+              onMatchFound={handleMatchFound}
+              onCancel={handleCancelMatchmaking}
+            />
+          </div>
+        );
+      case 'matched':
+        return (
+          <div className="max-w-md mx-auto">
+            <MatchResults 
+              matchId={activeMatchId || ''}
+              userId={user.id}
+              onComplete={handleMatchResultsSubmitted}
+            />
+          </div>
+        );
+      default:
+        return (
+          <>
+            {isLoading ? (
+              <div className="flex justify-center py-16">
+                <Loader className="h-8 w-8 animate-spin text-nexara-accent" />
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {activeTab === "quick-match" && (
+                  <>
+                    <MatchmakingQueue 
+                      queueType={MatchType.OneVsOne}
+                      title="Quick Match (1v1)"
+                      players={2}
+                      entryFee={10}
+                      prize={18}
+                      estimatedWaitTime={30}
+                      playersInQueue={queueStats[0]?.playersInQueue || 0}
+                      onJoinQueue={handleJoinQueue}
+                    />
+                    <MatchmakingQueue 
+                      queueType={MatchType.OneVsOne}
+                      title="Pro Match (1v1)"
+                      players={2}
+                      entryFee={20}
+                      prize={36}
+                      estimatedWaitTime={45}
+                      playersInQueue={1}
+                      onJoinQueue={handleJoinQueue}
+                    />
+                  </>
+                )}
+                
+                {activeTab === "team-match" && (
+                  <>
+                    <MatchmakingQueue 
+                      queueType={MatchType.FourVsFour}
+                      title="Team Match (4v4)"
+                      players={8}
+                      entryFee={15}
+                      prize={100}
+                      estimatedWaitTime={60}
+                      playersInQueue={queueStats[1]?.playersInQueue || 0}
+                      onJoinQueue={handleJoinQueue}
+                    />
+                    <MatchmakingQueue 
+                      queueType={MatchType.FourVsFour}
+                      title="Pro Team Match (4v4)"
+                      players={8}
+                      entryFee={25}
+                      prize={180}
+                      estimatedWaitTime={90}
+                      playersInQueue={0}
+                      onJoinQueue={handleJoinQueue}
+                    />
+                  </>
+                )}
+                
+                {activeTab === "battle-royale" && (
+                  <>
+                    <MatchmakingQueue 
+                      queueType={MatchType.BattleRoyale}
+                      title="Battle Royale"
+                      players={30}
+                      entryFee={5}
+                      prize={120}
+                      estimatedWaitTime={120}
+                      playersInQueue={queueStats[2]?.playersInQueue || 0}
+                      onJoinQueue={handleJoinQueue}
+                    />
+                    <MatchmakingQueue 
+                      queueType={MatchType.BattleRoyale}
+                      title="Pro Battle Royale"
+                      players={50}
+                      entryFee={10}
+                      prize={450}
+                      estimatedWaitTime={180}
+                      playersInQueue={0}
+                      onJoinQueue={handleJoinQueue}
+                    />
+                  </>
+                )}
+              </div>
+            )}
+          </>
+        );
+    }
   };
 
   return (
@@ -158,95 +287,7 @@ const Matches = () => {
               <TabsTrigger value="battle-royale">Battle Royale</TabsTrigger>
             </TabsList>
             
-            {activeMatchmakingTicket ? (
-              <div className="max-w-md mx-auto">
-                <MatchmakingStatus 
-                  userId={user?.id || ''}
-                  ticketId={activeMatchmakingTicket}
-                  onMatchFound={handleMatchFound}
-                  onCancel={handleCancelMatchmaking}
-                />
-              </div>
-            ) : (
-              <TabsContent value={activeTab} className="mt-0">
-                {isLoading ? (
-                  <div className="flex justify-center py-16">
-                    <Loader className="h-8 w-8 animate-spin text-nexara-accent" />
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {activeTab === "quick-match" && (
-                      <>
-                        <MatchmakingQueue 
-                          queueType={MatchType.OneVsOne}
-                          title="Quick Match (1v1)"
-                          players={2}
-                          entryFee={10}
-                          prize={18}
-                          estimatedWaitTime={30}
-                          playersInQueue={queueStats[0]?.playersInQueue || 0}
-                        />
-                        <MatchmakingQueue 
-                          queueType={MatchType.OneVsOne}
-                          title="Pro Match (1v1)"
-                          players={2}
-                          entryFee={20}
-                          prize={36}
-                          estimatedWaitTime={45}
-                          playersInQueue={1}
-                        />
-                      </>
-                    )}
-                    
-                    {activeTab === "team-match" && (
-                      <>
-                        <MatchmakingQueue 
-                          queueType={MatchType.FourVsFour}
-                          title="Team Match (4v4)"
-                          players={8}
-                          entryFee={15}
-                          prize={100}
-                          estimatedWaitTime={60}
-                          playersInQueue={queueStats[1]?.playersInQueue || 0}
-                        />
-                        <MatchmakingQueue 
-                          queueType={MatchType.FourVsFour}
-                          title="Pro Team Match (4v4)"
-                          players={8}
-                          entryFee={25}
-                          prize={180}
-                          estimatedWaitTime={90}
-                          playersInQueue={0}
-                        />
-                      </>
-                    )}
-                    
-                    {activeTab === "battle-royale" && (
-                      <>
-                        <MatchmakingQueue 
-                          queueType={MatchType.BattleRoyale}
-                          title="Battle Royale"
-                          players={30}
-                          entryFee={5}
-                          prize={120}
-                          estimatedWaitTime={120}
-                          playersInQueue={queueStats[2]?.playersInQueue || 0}
-                        />
-                        <MatchmakingQueue 
-                          queueType={MatchType.BattleRoyale}
-                          title="Pro Battle Royale"
-                          players={50}
-                          entryFee={10}
-                          prize={450}
-                          estimatedWaitTime={180}
-                          playersInQueue={0}
-                        />
-                      </>
-                    )}
-                  </div>
-                )}
-              </TabsContent>
-            )}
+            {renderMatchmakingState()}
           </Tabs>
         </div>
 
