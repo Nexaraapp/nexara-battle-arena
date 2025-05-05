@@ -1,19 +1,13 @@
 
 import { Button } from '@/components/ui/button';
-import { Plus } from 'lucide-react';
-import { DailyMatchGenerator } from '../DailyMatchGenerator';
+import { Info } from 'lucide-react';
 
-interface MatchActionsProps {
-  onCreateMatch: () => void;
-}
-
-export const MatchActions = ({ onCreateMatch }: MatchActionsProps) => {
+export const MatchActions = () => {
   return (
     <div className="flex gap-2">
-      <DailyMatchGenerator />
-      <Button onClick={onCreateMatch}>
-        <Plus className="mr-2 h-4 w-4" />
-        New Match
+      <Button variant="outline" onClick={() => window.open('https://developer.playfab.com/en-US/my-studios', '_blank')}>
+        <Info className="mr-2 h-4 w-4" />
+        PlayFab Dashboard
       </Button>
     </div>
   );

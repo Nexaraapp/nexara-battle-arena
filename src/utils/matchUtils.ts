@@ -1,31 +1,31 @@
 
-// This file is now a wrapper for the new refactored match modules
+// This file is now a wrapper for the new PlayFab match modules
 // It's maintained for backward compatibility
 import type { 
   Match, 
   MatchType, 
   MatchStatus,
-  RoomMode,
-  RoomType 
+  QueueStats 
 } from './match/matchTypes';
 
 import {
-  getUpcomingMatches,
+  getActiveMatches,
   getMatchById,
-  getMatchesByStatus
+  getMatchesByStatus,
+  getQueueStats,
+  getAllQueueStats
 } from './match/matchQueries';
 
 import {
-  updateMatchRoomDetails,
-  createMatch,
-  cancelMatch,
-  completeMatch
+  getPlayFabMatchmakingStats,
+  configureMatchmakingRules
 } from './match/adminMatchOperations';
 
 import {
-  joinMatch,
-  hasPlayerJoinedMatch,
-  getPlayerMatches
+  joinMatchQueue,
+  cancelMatchmaking,
+  checkMatchmakingStatus,
+  submitMatchResults
 } from './match/playerMatchOperations';
 
 // Re-export everything for backward compatibility
@@ -34,22 +34,22 @@ export {
   type Match,
   type MatchType,
   type MatchStatus,
-  type RoomMode,
-  type RoomType,
+  type QueueStats,
   
   // Queries
-  getUpcomingMatches,
+  getActiveMatches,
   getMatchById,
   getMatchesByStatus,
+  getQueueStats,
+  getAllQueueStats,
   
   // Admin operations
-  updateMatchRoomDetails,
-  createMatch,
-  cancelMatch,
-  completeMatch,
+  getPlayFabMatchmakingStats,
+  configureMatchmakingRules,
   
   // Player operations
-  joinMatch,
-  hasPlayerJoinedMatch,
-  getPlayerMatches
+  joinMatchQueue,
+  cancelMatchmaking,
+  checkMatchmakingStatus,
+  submitMatchResults
 };
