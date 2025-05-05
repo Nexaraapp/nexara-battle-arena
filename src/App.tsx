@@ -14,6 +14,7 @@ import Notifications from "./pages/Notifications";
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
 import AdminDashboard from "./pages/admin/Dashboard";
+import MatchManagementPage from "./pages/admin/MatchManagement";
 import { CreateSuperadminUtility } from "./scripts/createSuperadmin";
 import { RouteGuard } from "./components/guards/RouteGuard";
 import { AuthProvider } from "./hooks/useAuth";
@@ -36,6 +37,13 @@ const App = () => (
               <RouteGuard requireAuth requireAdmin>
                 <MainLayout>
                   <AdminDashboard />
+                </MainLayout>
+              </RouteGuard>
+            } />
+            <Route path="/admin/matches" element={
+              <RouteGuard requireAuth requireAdmin>
+                <MainLayout>
+                  <MatchManagementPage />
                 </MainLayout>
               </RouteGuard>
             } />

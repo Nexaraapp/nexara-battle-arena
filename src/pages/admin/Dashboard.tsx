@@ -71,6 +71,11 @@ const Dashboard = () => {
     logAdminAction(user?.id || '', 'Accessed User Management', 'Attempted to access user management feature');
   };
 
+  const handleManageMatches = () => {
+    navigate('/admin/matches');
+    logAdminAction(user?.id || '', 'Accessed Match Management', 'Navigated to match management page');
+  };
+
   const handleReviewWithdrawals = async () => {
     // For now, we'll fetch and show withdrawal info in a toast
     try {
@@ -203,6 +208,14 @@ const Dashboard = () => {
               onClick={handleManageUsers}
             >
               <Users className="mr-2 h-4 w-4" /> Manage Users
+            </Button>
+            
+            <Button 
+              variant="outline" 
+              className="w-full justify-start"
+              onClick={handleManageMatches}
+            >
+              <Activity className="mr-2 h-4 w-4" /> Manage Matches
             </Button>
             
             <Button 
