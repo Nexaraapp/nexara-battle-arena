@@ -1,14 +1,15 @@
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Loader2, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { Match } from '@/utils/match/matchTypes';
 import { useAuth } from '@/hooks/useAuth';
-import { DailyMatchGenerator } from './DailyMatchGenerator';
 import { MatchEditor } from './MatchEditor';
+import { MatchTable } from './matches/MatchTable';
+import { MatchActions } from './matches/MatchActions';
+import { EmptyMatchState } from './matches/EmptyMatchState';
+import { MatchLoadingState } from './matches/MatchLoadingState';
 
 export const MatchManagement = () => {
   const [matches, setMatches] = useState<Match[]>([]);
@@ -156,88 +157,23 @@ export const MatchManagement = () => {
     }
   };
 
-  const formatDate = (dateString: string) => {
-    if (!dateString) return 'TBD';
-    const date = new Date(dateString);
-    return date.toLocaleString();
-  };
-
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>Match Management</CardTitle>
-        <div className="flex gap-2">
-          <DailyMatchGenerator />
-          <Button onClick={handleCreateMatch}>
-            <Plus className="mr-2 h-4 w-4" />
-            New Match
-          </Button>
-        </div>
+        <MatchActions onCreateMatch={handleCreateMatch} />
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <div className="flex justify-center p-8">
-            <Loader2 className="h-8 w-8 animate-spin" />
-          </div>
+          <MatchLoadingState />
         ) : matches.length > 0 ? (
-          <div className="rounded-md border">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-muted/50 border-b">
-                    <th className="px-4 py-3 text-left font-medium">Title</th>
-                    <th className="px-4 py-3 text-left font-medium">Type</th>
-                    <th className="px-4 py-3 text-left font-medium">Start Time</th>
-                    <th className="px-4 py-3 text-center font-medium">Entry Fee</th>
-                    <th className="px-4 py-3 text-center font-medium">Players</th>
-                    <th className="px-4 py-3 text-center font-medium">Status</th>
-                    <th className="px-4 py-3 text-center font-medium">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {matches.map((match) => (
-                    <tr key={match.id} className="border-b hover:bg-muted/50">
-                      <td className="px-4 py-3">{match.title || match.type}</td>
-                      <td className="px-4 py-3">{match.type}</td>
-                      <td className="px-4 py-3">{formatDate(match.start_time)}</td>
-                      <td className="px-4 py-3 text-center">{match.entry_fee} coins</td>
-                      <td className="px-4 py-3 text-center">{match.slots_filled}/{match.slots}</td>
-                      <td className="px-4 py-3 text-center">
-                        <span className={`inline-block px-2 py-1 rounded text-xs ${
-                          match.status === 'upcoming' ? 'bg-blue-100 text-blue-800' :
-                          match.status === 'active' ? 'bg-green-100 text-green-800' :
-                          match.status === 'completed' ? 'bg-gray-100 text-gray-800' :
-                          'bg-red-100 text-red-800'
-                        }`}>
-                          {match.status.toUpperCase()}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex justify-center space-x-2">
-                          <Button variant="outline" size="sm" onClick={() => handleEditMatch(match)}>
-                            Edit
-                          </Button>
-                          {match.status !== 'cancelled' && match.status !== 'completed' && (
-                            <Button 
-                              variant="destructive" 
-                              size="sm"
-                              onClick={() => handleCancelMatch(match.id)}
-                            >
-                              Cancel
-                            </Button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <MatchTable 
+            matches={matches} 
+            onEditMatch={handleEditMatch} 
+            onCancelMatch={handleCancelMatch} 
+          />
         ) : (
-          <div className="text-center py-8 text-gray-500">
-            No matches found. Create a match or generate default matches.
-          </div>
+          <EmptyMatchState />
         )}
       </CardContent>
       
