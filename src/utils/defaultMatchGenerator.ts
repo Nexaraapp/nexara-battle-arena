@@ -1,7 +1,6 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { getSystemSettings } from "./systemSettingsApi";
-import { MatchType, RoomMode, RoomType } from "./match/matchTypes";
 
 /**
  * Generate default matches for the day

@@ -1,5 +1,4 @@
 
-
 // Import types from the new location if needed
 // Note: Edge functions don't share code with the frontend, so they should have their own implementation
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -228,4 +227,3 @@ serve(async (req) => {
     });
   }
 });
-
