@@ -1,6 +1,11 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { 
+  handleError, 
+  createMatchError, 
+  createTransactionError, 
+  withRetry 
+} from "../errorHandling";
 
 /**
  * Allow a player to join a match (legacy function for backward compatibility)
@@ -15,28 +20,46 @@ export const joinMatch = async (matchId: string, userId: string): Promise<boolea
       .eq('user_id', userId)
       .maybeSingle();
       
+    if (checkError) {
+      throw createMatchError(
+        "JOIN_FAILED",
+        "Failed to check existing match entry",
+        { matchId, userId, error: checkError }
+      );
+    }
+      
     if (existingEntry) {
-      toast.error("You have already joined this match");
-      return false;
+      throw createMatchError(
+        "JOIN_FAILED",
+        "You have already joined this match",
+        { matchId, userId }
+      );
     }
     
-    // Get match details
-    const { data: match, error: matchError } = await supabase
-      .from('matches')
-      .select('*')
-      .eq('id', matchId)
-      .single();
+    // Get match details with retry for network issues
+    const { data: match, error: matchError } = await withRetry(async () => 
+      await supabase
+        .from('matches')
+        .select('*')
+        .eq('id', matchId)
+        .single()
+    );
       
     if (matchError || !match) {
-      console.error("Error fetching match:", matchError);
-      toast.error("Could not find match details");
-      return false;
+      throw createMatchError(
+        "JOIN_FAILED",
+        "Could not find match details",
+        { matchId, error: matchError }
+      );
     }
     
     // Check if match is full
     if (match.slots_filled >= match.slots) {
-      toast.error("This match is already full");
-      return false;
+      throw createMatchError(
+        "FULL_CAPACITY",
+        "This match is already full",
+        { matchId, slots: match.slots, slotsFilled: match.slots_filled }
+      );
     }
     
     // Find the next available slot number
@@ -47,8 +70,11 @@ export const joinMatch = async (matchId: string, userId: string): Promise<boolea
       .order('slot_number', { ascending: true });
       
     if (slotsError) {
-      console.error("Error fetching taken slots:", slotsError);
-      return false;
+      throw createMatchError(
+        "JOIN_FAILED",
+        "Failed to check available slots",
+        { matchId, error: slotsError }
+      );
     }
     
     const takenSlotNumbers = takenSlots.map(entry => entry.slot_number);
@@ -68,9 +94,11 @@ export const joinMatch = async (matchId: string, userId: string): Promise<boolea
       });
       
     if (insertError) {
-      console.error("Error joining match:", insertError);
-      toast.error("Failed to join match");
-      return false;
+      throw createMatchError(
+        "JOIN_FAILED",
+        "Failed to join match",
+        { matchId, userId, slotNumber, error: insertError }
+      );
     }
     
     // Record transaction for entry fee
@@ -87,7 +115,6 @@ export const joinMatch = async (matchId: string, userId: string): Promise<boolea
       });
       
     if (transactionError) {
-      console.error("Error recording transaction:", transactionError);
       // Clean up the match entry since the transaction failed
       await supabase
         .from('match_entries')
@@ -95,8 +122,11 @@ export const joinMatch = async (matchId: string, userId: string): Promise<boolea
         .eq('match_id', matchId)
         .eq('user_id', userId);
         
-      toast.error("Failed to process entry fee");
-      return false;
+      throw createTransactionError(
+        "FAILED_PROCESSING",
+        "Failed to process entry fee",
+        { matchId, userId, entryFee: match.entry_fee, error: transactionError }
+      );
     }
     
     // Increment the slots filled
@@ -108,15 +138,20 @@ export const joinMatch = async (matchId: string, userId: string): Promise<boolea
       .eq('id', matchId);
       
     if (updateError) {
-      console.error("Error updating match slots:", updateError);
-      // Don't need to clean up since the user is still registered
+      handleError(
+        createMatchError(
+          "JOIN_FAILED",
+          "Failed to update match slots",
+          { matchId, newSlotsFilled: match.slots_filled + 1, error: updateError }
+        )
+      );
+      // Don't throw here since the user is still registered
     }
     
     toast.success("Successfully joined the match! Please check your notifications for match details.");
     return true;
   } catch (error) {
-    console.error("Error in joinMatch:", error);
-    toast.error("An unexpected error occurred");
+    handleError(error, { matchId, userId });
     return false;
   }
 };

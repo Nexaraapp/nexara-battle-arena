@@ -1,9 +1,8 @@
-
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Loader2, Search, Plus } from 'lucide-react';
+import { Loader2, Search } from 'lucide-react';
 import { 
   Table, 
   TableBody, 
@@ -15,6 +14,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { MatchEditorButton } from '@/components/admin/MatchEditorButton';
+import { CreateMatchDialog } from '@/components/admin/matches/CreateMatchDialog';
 
 export default function MatchManagementPage() {
   const { user } = useAuth();
@@ -65,10 +65,13 @@ export default function MatchManagementPage() {
           <h1 className="text-2xl font-bold">Match Management</h1>
           <p className="text-gray-400">Manage match details including room information</p>
         </div>
-        <Button onClick={fetchMatches}>
-          <Loader2 className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : 'hidden'}`} />
-          Refresh
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={fetchMatches}>
+            <Loader2 className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : 'hidden'}`} />
+            Refresh
+          </Button>
+          <CreateMatchDialog onMatchCreated={fetchMatches} />
+        </div>
       </header>
       
       <div className="flex items-center gap-2">
@@ -111,41 +114,32 @@ export default function MatchManagementPage() {
               ) : (
                 filteredMatches.map((match) => (
                   <TableRow key={match.id}>
-                    <TableCell className="font-mono text-xs">
-                      {match.id.substring(0, 8)}...
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      {match.title || `Match #${match.id.substring(0, 6)}`}
-                    </TableCell>
+                    <TableCell className="font-medium">#{match.id.substring(0, 8)}</TableCell>
+                    <TableCell>{match.title}</TableCell>
+                    <TableCell>{match.type}</TableCell>
                     <TableCell>
-                      {match.type === 'one_vs_one' ? '1v1' : 
-                       match.type === 'four_vs_four' ? '4v4' : 
-                       'Battle Royale'}
-                    </TableCell>
-                    <TableCell>
-                      <div className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                         match.status === 'upcoming' ? 'bg-blue-100 text-blue-800' :
                         match.status === 'active' ? 'bg-green-100 text-green-800' :
-                        match.status === 'completed' ? 'bg-purple-100 text-purple-800' :
-                        'bg-gray-100 text-gray-800'
+                        match.status === 'completed' ? 'bg-gray-100 text-gray-800' :
+                        'bg-red-100 text-red-800'
                       }`}>
                         {match.status}
-                      </div>
+                      </span>
                     </TableCell>
                     <TableCell>{formatDate(match.created_at)}</TableCell>
                     <TableCell className="text-right">
                       {match.room_id ? (
-                        <span className="text-xs">
-                          ID: {match.room_id} / PW: {match.room_password || 'None'}
+                        <span className="text-sm">
+                          ID: {match.room_id}
+                          {match.room_password && ' (Protected)'}
                         </span>
                       ) : (
-                        <span className="text-xs text-gray-500">Not set</span>
+                        <span className="text-sm text-gray-500">Not set</span>
                       )}
                     </TableCell>
                     <TableCell>
-                      <div className="flex justify-end">
-                        <MatchEditorButton matchId={match.id} />
-                      </div>
+                      <MatchEditorButton matchId={match.id} />
                     </TableCell>
                   </TableRow>
                 ))

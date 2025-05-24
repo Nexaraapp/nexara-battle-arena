@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { 
   IndianRupee, Loader, CircleArrowUp, CircleArrowDown, 
-  Coins, ArrowRight, Check, AlertCircle 
+  Coins, ArrowRight, Check, AlertCircle, ChevronLeft, ChevronRight 
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -25,6 +25,9 @@ import {
 import { 
   getSystemSettings
 } from "@/utils/systemSettingsApi";
+import { getUserBalance } from "@/utils/balanceApi";
+
+const ITEMS_PER_PAGE = 10;
 
 const Wallet = () => {
   const [balance, setBalance] = useState(0);
@@ -33,9 +36,12 @@ const Wallet = () => {
   const [selectedCoinPack, setSelectedCoinPack] = useState<string | null>(null);
   const [utrNumber, setUtrNumber] = useState("");
   const [isLoadingBalance, setIsLoadingBalance] = useState(true);
+  const [isLoadingTransactions, setIsLoadingTransactions] = useState(true);
   const [isProcessingWithdrawal, setIsProcessingWithdrawal] = useState(false);
   const [isProcessingTopup, setIsProcessingTopup] = useState(false);
   const [transactions, setTransactions] = useState<any[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [activeTab, setActiveTab] = useState("balance");
   const [withdrawalMsg, setWithdrawalMsg] = useState("");
   const [withdrawalCount, setWithdrawalCount] = useState(0);
@@ -47,6 +53,7 @@ const Wallet = () => {
   
   useEffect(() => {
     fetchWalletData();
+    fetchTransactions(currentPage);
     
     const channel = supabase
       .channel('wallet-changes')
@@ -59,6 +66,7 @@ const Wallet = () => {
         }, 
         () => {
           fetchWalletData();
+          fetchTransactions(currentPage);
         }
       )
       .subscribe();
@@ -71,72 +79,70 @@ const Wallet = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [currentPage]);
   
-  const getCurrentUserId = () => {
-    return supabase.auth.getSession().then(({ data }) => {
-      return data?.session?.user?.id;
-    });
+  const getCurrentUserId = async () => {
+    const { data } = await supabase.auth.getSession();
+    return data?.session?.user?.id;
   };
 
   const fetchWalletData = async () => {
     setIsLoadingBalance(true);
     
     try {
-      const { data } = await supabase.auth.getSession();
-      const session = data.session;
+      const { balance, realCoinsBalance } = await getUserBalance();
+      setBalance(balance);
+      setRealCoinsBalance(realCoinsBalance);
       
-      if (!session) {
-        toast.error("Please log in to access your wallet");
-        setIsLoadingBalance(false);
+      const userId = await getCurrentUserId();
+      if (userId) {
+        const count = await getUserWithdrawalCount(userId);
+        setWithdrawalCount(count);
+      }
+    } catch (error: any) {
+      console.error("Error fetching wallet data:", error);
+      toast.error(error.message || "Failed to load wallet data");
+    } finally {
+      setIsLoadingBalance(false);
+    }
+  };
+
+  const fetchTransactions = async (page: number) => {
+    setIsLoadingTransactions(true);
+    
+    try {
+      const userId = await getCurrentUserId();
+      if (!userId) {
+        toast.error("Please log in to view transactions");
         return;
       }
       
-      const userId = session.user.id;
+      // Get total count first
+      const { count } = await supabase
+        .from('transactions')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId);
+        
+      setTotalPages(Math.ceil((count || 0) / ITEMS_PER_PAGE));
       
-      // Fetch transactions
+      // Fetch paginated transactions
       const { data: transactionsData, error: transactionsError } = await supabase
         .from('transactions')
         .select('*')
         .eq('user_id', userId)
-        .order('date', { ascending: false });
+        .order('date', { ascending: false })
+        .range((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE - 1);
         
       if (transactionsError) {
-        console.error("Error fetching transactions:", transactionsError);
-        toast.error("Failed to load transaction history");
-      } else {
-        setTransactions(transactionsData || []);
+        throw transactionsError;
       }
       
-      // Calculate balances
-      let calculatedBalance = 0;
-      let realCoins = 0;
-      
-      if (transactionsData) {
-        transactionsData.forEach(tx => {
-          if (tx.status === 'completed') {
-            calculatedBalance += (tx.amount || 0);
-            
-            // Count real coins (from top-ups)
-            if (tx.is_real_coins) {
-              realCoins += (tx.amount || 0);
-            }
-          }
-        });
-      }
-      
-      setBalance(calculatedBalance);
-      setRealCoinsBalance(realCoins);
-      
-      // Get withdrawal count
-      const count = await getUserWithdrawalCount(userId);
-      setWithdrawalCount(count);
-      
-    } catch (error) {
-      console.error("Error fetching wallet data:", error);
-      toast.error("Failed to load wallet data");
+      setTransactions(transactionsData || []);
+    } catch (error: any) {
+      console.error("Error fetching transactions:", error);
+      toast.error("Failed to load transaction history");
     } finally {
-      setIsLoadingBalance(false);
+      setIsLoadingTransactions(false);
     }
   };
   
@@ -293,119 +299,97 @@ const Wallet = () => {
   };
   
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Wallet</h1>
-      
-      <Tabs defaultValue="balance" value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid grid-cols-3">
-          <TabsTrigger value="balance">Balance</TabsTrigger>
-          <TabsTrigger value="topup">Top Up</TabsTrigger>
-          <TabsTrigger value="withdraw">Withdraw</TabsTrigger>
+    <div className="container mx-auto px-4 py-8">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="balance">Balance & History</TabsTrigger>
+          <TabsTrigger value="actions">Add / Withdraw</TabsTrigger>
         </TabsList>
-        
-        <TabsContent value="balance" className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Your Balance</CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-col items-center">
-                {isLoadingBalance ? (
-                  <div className="py-8 flex justify-center">
-                    <Loader className="h-8 w-8 animate-spin text-nexara-accent" />
+
+        <TabsContent value="balance">
+          <Card>
+            <CardHeader>
+              <CardTitle>Your Balance</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {isLoadingBalance ? (
+                <div className="flex items-center justify-center p-4">
+                  <Loader className="h-6 w-6 animate-spin" />
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span>Total Balance:</span>
+                    <span className="text-2xl font-bold">{balance} coins</span>
                   </div>
-                ) : (
-                  <div className="py-8 text-center">
-                    <div className="text-4xl font-bold mb-2">{balance}</div>
-                    <div className="text-gray-400">Coins Available</div>
+                  <div className="flex items-center justify-between text-sm text-muted-foreground">
+                    <span>Real Coins Balance:</span>
+                    <span>{realCoinsBalance} coins</span>
                   </div>
-                )}
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader>
-                <CardTitle>Real Coins</CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-col items-center">
-                {isLoadingBalance ? (
-                  <div className="py-8 flex justify-center">
-                    <Loader className="h-8 w-8 animate-spin text-nexara-accent" />
-                  </div>
-                ) : (
-                  <div className="py-8 text-center">
-                    <div className="text-4xl font-bold mb-2">{realCoinsBalance}</div>
-                    <div className="text-gray-400">Available for Withdrawal</div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-          
-          <h2 className="text-xl font-bold mt-6">Transaction History</h2>
-          
-          {transactions.length > 0 ? (
-            <div className="space-y-3">
-              {transactions.map((transaction) => (
-                <Card key={transaction.id} className="overflow-hidden">
-                  <CardContent className="p-0">
-                    <div className="flex items-center">
-                      <div className={`p-4 ${transaction.amount > 0 ? 'bg-green-900/20' : 'bg-red-900/20'}`}>
-                        {transaction.amount > 0 ? (
-                          <CircleArrowUp className="h-6 w-6 text-green-500" />
-                        ) : (
-                          <CircleArrowDown className="h-6 w-6 text-red-500" />
-                        )}
-                      </div>
-                      <div className="p-4 flex-1">
-                        <div className="flex justify-between items-start">
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <div className="mt-8">
+            <h3 className="mb-4 text-lg font-semibold">Transaction History</h3>
+            {isLoadingTransactions ? (
+              <div className="flex items-center justify-center p-4">
+                <Loader className="h-6 w-6 animate-spin" />
+              </div>
+            ) : (
+              <>
+                <div className="space-y-4">
+                  {transactions.map((tx) => (
+                    <Card key={tx.id}>
+                      <CardContent className="p-4">
+                        <div className="flex items-center justify-between">
                           <div>
-                            <div className="font-medium">
-                              {transaction.type === 'match_entry' && 'Match Entry Fee'}
-                              {transaction.type === 'match_win' && 'Match Reward'}
-                              {transaction.type === 'admin_reward' && 'Admin Bonus'}
-                              {transaction.type === 'topup' && 'Top-up'}
-                              {transaction.type === 'withdrawal' && 'Withdrawal'}
-                              {transaction.type === 'ad_reward' && 'Ad Reward'}
-                              {transaction.type === 'login_reward' && 'Login Reward'}
-                            </div>
-                            <div className="text-sm text-gray-400">
-                              {transaction.date && (
-                                <>{formatDistanceToNow(new Date(transaction.date))} ago</>
-                              )}
-                            </div>
+                            <p className="font-medium">{tx.type}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {formatDistanceToNow(new Date(tx.date), { addSuffix: true })}
+                            </p>
                           </div>
-                          <div className={`font-semibold ${transaction.amount > 0 ? 'text-green-500' : 'text-red-500'}`}>
-                            {transaction.amount > 0 ? '+' : ''}{transaction.amount} coins
+                          <div className="text-right">
+                            <p className={`font-bold ${tx.amount >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              {tx.amount >= 0 ? '+' : ''}{tx.amount} coins
+                            </p>
+                            <p className="text-sm text-muted-foreground">{tx.status}</p>
                           </div>
                         </div>
-                        {transaction.notes && (
-                          <div className="text-sm text-gray-400 mt-1">
-                            {transaction.notes}
-                          </div>
-                        )}
-                        {transaction.status === 'pending' && (
-                          <div className="text-sm text-yellow-500 mt-1">
-                            Pending approval
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          ) : (
-            <Card>
-              <CardContent className="p-6 text-center">
-                <div className="text-gray-400 mb-2">No transactions yet</div>
-                <p>Complete matches or top up your wallet to see your transaction history.</p>
-              </CardContent>
-            </Card>
-          )}
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+
+                {/* Pagination */}
+                <div className="mt-4 flex items-center justify-center space-x-4">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <span className="text-sm">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
         </TabsContent>
-        
-        <TabsContent value="topup">
+
+        <TabsContent value="actions">
           <Card>
             <CardHeader>
               <CardTitle>Add Coins to Your Wallet</CardTitle>
@@ -484,9 +468,7 @@ const Wallet = () => {
               </form>
             </CardContent>
           </Card>
-        </TabsContent>
-        
-        <TabsContent value="withdraw">
+
           <Card>
             <CardHeader>
               <CardTitle>Withdraw Coins</CardTitle>

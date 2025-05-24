@@ -1,0 +1,40 @@
+{
+  "name": "Nexara BattleField",
+  "short_name": "Nexara",
+  "description": "Competitive mobile gaming platform for skill-based matches",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#000000",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "View Matches",
+      "short_name": "Matches",
+      "description": "View available matches",
+      "url": "/matches",
+      "icons": [{ "src": "/matches-icon.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "My Wallet",
+      "short_name": "Wallet",
+      "description": "View your wallet balance",
+      "url": "/wallet",
+      "icons": [{ "src": "/wallet-icon.png", "sizes": "192x192" }]
+    }
+  ]
+} 

@@ -1,7 +1,12 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { getUserWalletBalance } from "./transactionApi";
+import { 
+  handleError, 
+  createTransactionError, 
+  withRetry, 
+  ErrorCodes 
+} from "./errorHandling";
 
 export const getUserWithdrawalCount = async (userId: string): Promise<number> => {
   try {
@@ -28,30 +33,58 @@ export const createWithdrawalRequest = async (
   payoutDetails: string
 ): Promise<boolean> => {
   try {
+    // Validate amount
     if (amount <= 0) {
-      toast.error("Withdrawal amount must be greater than 0");
-      return false;
+      throw createTransactionError(
+        "INVALID_AMOUNT",
+        "Withdrawal amount must be greater than 0",
+        { userId, amount }
+      );
     }
-    const balance = await getUserWalletBalance(userId);
+
+    // Check balance with retry for network issues
+    const balance = await withRetry(
+      async () => await getUserWalletBalance(userId),
+      {
+        maxAttempts: 3,
+        delayMs: 1000,
+        shouldRetry: (error) => error.code === ErrorCodes.API.NETWORK_ERROR
+      }
+    );
+
     if (balance < amount) {
-      toast.error("Insufficient balance");
-      return false;
+      throw createTransactionError(
+        "INSUFFICIENT_BALANCE",
+        "Insufficient balance",
+        { userId, balance, requestedAmount: amount }
+      );
     }
+
+    // Check for pending withdrawals
     const { data: pendingWithdrawals, error: pendingError } = await supabase
       .from('transactions')
       .select('id')
       .eq('user_id', userId)
       .eq('type', 'withdrawal')
       .eq('status', 'pending');
+
     if (pendingError) {
-      console.error("Error checking pending withdrawals:", pendingError);
-      toast.error("Failed to process withdrawal");
-      return false;
+      throw createTransactionError(
+        "FAILED_PROCESSING",
+        "Failed to check pending withdrawals",
+        { userId, error: pendingError }
+      );
     }
+
     if (pendingWithdrawals && pendingWithdrawals.length > 0) {
-      toast.error("You already have a pending withdrawal request");
-      return false;
+      throw createTransactionError(
+        "FAILED_PROCESSING",
+        "You already have a pending withdrawal request",
+        { userId, pendingCount: pendingWithdrawals.length }
+      );
     }
+
+    // Create withdrawal transaction
     const { error: withdrawalError } = await supabase
       .from('transactions')
       .insert({
@@ -62,11 +95,16 @@ export const createWithdrawalRequest = async (
         date: new Date().toISOString().split('T')[0],
         notes: `Withdrawal to ${paymentMethod}. ${payoutDetails}`
       });
+
     if (withdrawalError) {
-      console.error("Error creating withdrawal:", withdrawalError);
-      toast.error("Failed to create withdrawal request");
-      return false;
+      throw createTransactionError(
+        "FAILED_PROCESSING",
+        "Failed to create withdrawal request",
+        { userId, amount, error: withdrawalError }
+      );
     }
+
+    // Create withdrawal record
     const { error: withdrawalsError } = await supabase
       .from('withdrawals')
       .insert({
@@ -75,14 +113,22 @@ export const createWithdrawalRequest = async (
         status: 'pending',
         created_at: new Date().toISOString()
       });
+
     if (withdrawalsError && withdrawalsError.code !== 'PGRST116') {
-      console.error("Error adding withdrawal record:", withdrawalsError);
+      // Log this error but don't fail the transaction since it's a secondary record
+      handleError(
+        createTransactionError(
+          "FAILED_PROCESSING",
+          "Error adding withdrawal record",
+          { userId, amount, error: withdrawalsError }
+        )
+      );
     }
+
     toast.success("Withdrawal request submitted successfully");
     return true;
   } catch (error) {
-    console.error("Error in createWithdrawalRequest:", error);
-    toast.error("An unexpected error occurred");
+    handleError(error, { userId, amount, paymentMethod });
     return false;
   }
 };
