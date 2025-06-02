@@ -1,285 +1,352 @@
 
-import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
-import { Gamepad, Trophy, Star, ArrowRight, Loader } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import { Link } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
+import { useOnboarding } from "@/hooks/useOnboarding";
+import { getUserBalance } from "@/utils/balanceApi";
+import { WelcomeOnboarding } from "@/components/onboarding/WelcomeOnboarding";
+import { DailyRewards } from "@/components/gamification/DailyRewards";
+import { Wallet, Trophy, Users, Star, TrendingUp, Gift, Zap } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
-import { DatabaseMatch, joinMatch } from "@/utils/matchUtils";
 
-const Index = () => {
-  const [activeTab, setActiveTab] = useState("battle-royale");
-  const [matches, setMatches] = useState<DatabaseMatch[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [stats, setStats] = useState({
-    activeTournaments: 0,
-    playersOnline: 0,
-    prizePool: 0,
-    gamesAvailable: 2
+interface UserStats {
+  totalMatches: number;
+  totalWins: number;
+  totalKills: number;
+  currentStreak: number;
+  level: number;
+  xp: number;
+  achievements: number;
+}
+
+export default function Index() {
+  const { user, isAuthenticated } = useAuth();
+  const { hasCompletedOnboarding, loading: onboardingLoading, markOnboardingComplete } = useOnboarding();
+  const [balance, setBalance] = useState<number>(0);
+  const [loading, setLoading] = useState(true);
+  const [userStats, setUserStats] = useState<UserStats>({
+    totalMatches: 0,
+    totalWins: 0,
+    totalKills: 0,
+    currentStreak: 0,
+    level: 1,
+    xp: 0,
+    achievements: 0
   });
-  const [userId, setUserId] = useState<string | null>(null);
-  
+  const { toast } = useToast();
+
   useEffect(() => {
-    const checkAuth = async () => {
-      const { data } = await supabase.auth.getSession();
-      if (data.session?.user) {
-        setUserId(data.session.user.id);
-      }
-    };
-    
-    checkAuth();
-    fetchMatches();
-    fetchStats();
-    
-    const channel = supabase
-      .channel('public:matches')
-      .on('postgres_changes',
-        { event: '*', schema: 'public', table: 'matches' },
-        () => {
-          fetchMatches();
-          fetchStats();
-        }
-      )
-      .subscribe();
-      
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
-  
-  const fetchMatches = async () => {
-    setIsLoading(true);
+    if (isAuthenticated && hasCompletedOnboarding) {
+      fetchUserData();
+    } else if (!isAuthenticated) {
+      setLoading(false);
+    }
+  }, [isAuthenticated, hasCompletedOnboarding]);
+
+  const fetchUserData = async () => {
+    if (!user) return;
+
     try {
-      const { data, error } = await supabase
-        .from('matches')
-        .select('*')
-        .in('status', ['upcoming', 'active'])
-        .order('created_at', { ascending: false })
-        .limit(4);
-        
-      if (error) {
-        console.error("Error fetching matches:", error);
-        toast.error("Failed to load matches");
-        setMatches([]);
-      } else {
-        setMatches(data as DatabaseMatch[] || []);
-      }
+      // Fetch balance
+      const balanceData = await getUserBalance();
+      setBalance(balanceData.balance);
+
+      // Fetch user stats
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('total_matches, total_wins, total_kills, level, xp')
+        .eq('user_id', user.id)
+        .single();
+
+      // Fetch achievements count
+      const { data: achievements } = await supabase
+        .from('user_achievements')
+        .select('id')
+        .eq('user_id', user.id);
+
+      setUserStats({
+        totalMatches: profile?.total_matches || 0,
+        totalWins: profile?.total_wins || 0,
+        totalKills: profile?.total_kills || 0,
+        currentStreak: 0, // TODO: Calculate from match history
+        level: profile?.level || 1,
+        xp: profile?.xp || 0,
+        achievements: achievements?.length || 0
+      });
     } catch (error) {
-      console.error("Error in fetchMatches:", error);
-      setMatches([]);
+      console.error('Error fetching user data:', error);
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
-  
-  const fetchStats = async () => {
-    try {
-      const { count: activeTournaments, error: tournamentsError } = await supabase
-        .from('matches')
-        .select('id', { count: 'exact' })
-        .in('status', ['upcoming', 'active']);
-        
-      const { data: prizeData, error: prizeError } = await supabase
-        .from('matches')
-        .select('prize')
-        .in('status', ['upcoming', 'active']);
-      
-      const { count: recentlyActive, error: activeError } = await supabase
-        .from('match_entries')
-        .select('user_id', { count: 'exact', head: true })
-        .gte('created_at', new Date(Date.now() - 30 * 60 * 1000).toISOString());
-      
-      if (!tournamentsError && !prizeError && !activeError) {
-        const totalPrizePool = (prizeData || []).reduce((sum, match) => sum + (match.prize || 0), 0);
-        
-        setStats({
-          activeTournaments: activeTournaments || 0,
-          playersOnline: recentlyActive || 0,
-          prizePool: totalPrizePool,
-          gamesAvailable: 2
-        });
-      }
-    } catch (error) {
-      console.error("Error fetching stats:", error);
-    }
-  };
-  
-  const handleJoinMatch = async (matchId: string) => {
-    if (!userId) {
-      toast.error("Please log in to join a match");
-      return;
-    }
-    
-    const success = await joinMatch(matchId, userId);
-    if (success) {
-      fetchMatches();
-    }
-  };
-  
-  const filteredMatches = matches.filter(match => 
-    activeTab === "all" || match.type.toLowerCase().includes(activeTab)
-  );
+
+  // Show onboarding for authenticated users who haven't completed it
+  if (isAuthenticated && !onboardingLoading && !hasCompletedOnboarding) {
+    return <WelcomeOnboarding onComplete={markOnboardingComplete} />;
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900">
+        {/* Hero Section */}
+        <div className="relative overflow-hidden">
+          <div className="absolute inset-0 bg-[url('/assets/game-bg-pattern.png')] opacity-20"></div>
+          <div className="relative container mx-auto px-4 py-20 text-center">
+            <div className="space-y-6">
+              <h1 className="text-5xl md:text-7xl font-bold text-white mb-4">
+                NEXARA
+                <span className="block text-3xl md:text-4xl text-blue-400 font-normal">
+                  BATTLEFIELD
+                </span>
+              </h1>
+              <p className="text-xl md:text-2xl text-gray-300 max-w-3xl mx-auto">
+                The Ultimate Competitive Gaming Arena Where Skill Meets Real Rewards
+              </p>
+              <div className="flex flex-wrap justify-center gap-4 mt-8">
+                <Link to="/login">
+                  <Button size="lg" className="bg-blue-600 hover:bg-blue-700 text-lg px-8">
+                    Start Gaming
+                  </Button>
+                </Link>
+                <Link to="/register">
+                  <Button size="lg" variant="outline" className="text-lg px-8">
+                    Create Account
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Features Section */}
+        <div className="container mx-auto px-4 py-16">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+              Why Choose Nexara?
+            </h2>
+            <p className="text-gray-400 text-lg">
+              Experience the future of competitive gaming
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <Card className="bg-gray-800/50 border-gray-700 backdrop-blur">
+              <CardHeader>
+                <Trophy className="w-12 h-12 text-yellow-500 mb-4" />
+                <CardTitle className="text-white">Real Money Prizes</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-400">
+                  Win actual cash prizes in skill-based matches. Your gaming skills can earn you real money.
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gray-800/50 border-gray-700 backdrop-blur">
+              <CardHeader>
+                <Zap className="w-12 h-12 text-blue-500 mb-4" />
+                <CardTitle className="text-white">Fair Play Guaranteed</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-400">
+                  All results are verified by admins. Anti-cheat measures ensure every match is fair and competitive.
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gray-800/50 border-gray-700 backdrop-blur">
+              <CardHeader>
+                <Gift className="w-12 h-12 text-green-500 mb-4" />
+                <CardTitle className="text-white">Instant Withdrawals</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-400">
+                  Withdraw your winnings instantly to your UPI. No waiting periods, no hidden fees.
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+
+        {/* Call to Action */}
+        <div className="bg-gradient-to-r from-blue-600 to-purple-600 py-16">
+          <div className="container mx-auto px-4 text-center">
+            <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+              Ready to Dominate?
+            </h2>
+            <p className="text-xl text-blue-100 mb-8">
+              Join thousands of gamers already earning real money
+            </p>
+            <Link to="/register">
+              <Button size="lg" variant="outline" className="text-lg px-8 bg-white text-blue-600 hover:bg-gray-100">
+                Join Nexara Now
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading || onboardingLoading) {
+    return (
+      <div className="container mx-auto px-4 py-8 space-y-6">
+        <div className="animate-pulse space-y-4">
+          <div className="h-8 bg-gray-800 rounded w-1/4"></div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="h-32 bg-gray-800 rounded"></div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-8">
-      <section className="relative rounded-xl overflow-hidden bg-hero-pattern bg-cover bg-center h-56 flex items-center justify-center neon-border animate-pulse-neon">
-        <div className="absolute inset-0 bg-nexara-bg/40 backdrop-blur-sm"></div>
-        <div className="relative z-10 text-center px-4">
-          <h1 className="text-3xl font-bold neon-text mb-2">
-            Nexara Battle<span className="text-nexara-accent">Field</span>
-          </h1>
-          <p className="text-gray-300 mb-4">Compete, win, dominate. Join tournaments now!</p>
-          <Button asChild className="game-button">
-            <Link to="/matches">Join a Match</Link>
-          </Button>
-        </div>
-      </section>
+    <div className="container mx-auto px-4 py-8 space-y-6">
+      {/* Welcome Header */}
+      <div className="text-center space-y-2">
+        <h1 className="text-3xl font-bold text-white">
+          Welcome back, Warrior! ⚔️
+        </h1>
+        <p className="text-gray-400">Ready to dominate the battlefield?</p>
+      </div>
 
-      <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-nexara-bg rounded-lg p-4 text-center neon-border">
-          <div className="text-nexara-accent mb-2">
-            <Trophy size={24} className="mx-auto" />
-          </div>
-          <div className="text-2xl font-bold">{stats.activeTournaments}</div>
-          <div className="text-xs text-gray-400">Active Tournaments</div>
-        </div>
-        
-        <div className="bg-nexara-bg rounded-lg p-4 text-center neon-border">
-          <div className="text-nexara-highlight mb-2">
-            <Gamepad size={24} className="mx-auto" />
-          </div>
-          <div className="text-2xl font-bold">{stats.playersOnline}</div>
-          <div className="text-xs text-gray-400">Players Online</div>
-        </div>
-        
-        <div className="bg-nexara-bg rounded-lg p-4 text-center neon-border">
-          <div className="text-nexara-warning mb-2">
-            <Star size={24} className="mx-auto" />
-          </div>
-          <div className="text-2xl font-bold">₹{stats.prizePool}</div>
-          <div className="text-xs text-gray-400">Prize Pool Today</div>
-        </div>
-        
-        <div className="bg-nexara-bg rounded-lg p-4 text-center neon-border">
-          <div className="text-nexara-info mb-2">
-            <Gamepad size={24} className="mx-auto" />
-          </div>
-          <div className="text-2xl font-bold">{stats.gamesAvailable}</div>
-          <div className="text-xs text-gray-400">Games Available</div>
-        </div>
-      </section>
+      {/* Daily Rewards */}
+      <DailyRewards />
 
-      <section>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold">Upcoming Matches</h2>
-          <Link 
-            to="/matches"
-            className="text-nexara-accent flex items-center text-sm hover:underline"
-          >
-            View All <ArrowRight size={14} className="ml-1" />
-          </Link>
-        </div>
+      {/* Quick Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Card className="bg-gray-800 border-gray-700">
+          <CardContent className="p-4 text-center">
+            <Wallet className="w-6 h-6 text-green-500 mx-auto mb-2" />
+            <p className="text-2xl font-bold text-white">{balance}</p>
+            <p className="text-sm text-gray-400">Wallet Balance</p>
+          </CardContent>
+        </Card>
 
-        <Tabs defaultValue="battle-royale" onValueChange={setActiveTab}>
-          <TabsList className="bg-muted mb-4 grid grid-cols-3">
-            <TabsTrigger value="battle-royale">Battle Royale</TabsTrigger>
-            <TabsTrigger value="clash-squad">Clash Squad</TabsTrigger>
-            <TabsTrigger value="all">All</TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value={activeTab} className="mt-0">
-            {isLoading ? (
-              <div className="flex justify-center py-16">
-                <Loader className="h-8 w-8 animate-spin text-nexara-accent" />
-              </div>
-            ) : filteredMatches.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {filteredMatches.map((match) => {
-                  const isJoinable = match.slots_filled < match.slots && match.status === 'upcoming';
-                  
-                  return (
-                    <Card key={match.id} className="game-card overflow-hidden">
-                      <CardContent className="p-0">
-                        <div className="flex items-center">
-                          <div className="p-4 flex-1">
-                            <div className="flex items-center justify-between">
-                              <div className="text-sm text-gray-400">
-                                {match.start_time ? new Date(match.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Time TBD'}
-                              </div>
-                              <div className={`text-xs px-2 py-1 rounded ${
-                                isJoinable
-                                  ? 'bg-green-900/40 text-green-400' 
-                                  : 'bg-gray-800/40 text-gray-400'
-                              }`}>
-                                {isJoinable ? 'Joinable' : 'Full'}
-                              </div>
-                            </div>
-                            <h3 className="text-lg font-bold mt-1">
-                              {match.type === 'BattleRoyale' && `Battle Royale`}
-                              {match.type === 'ClashSolo' && `Clash Squad Solo`}
-                              {match.type === 'ClashDuo' && `Clash Squad Duo`}
-                            </h3>
-                            <div className="flex mt-2 text-sm">
-                              <div className="pr-3 border-r border-nexara-accent/30">
-                                <div className="text-gray-400">Entry</div>
-                                <div className="font-semibold">{match.entry_fee} coins</div>
-                              </div>
-                              <div className="px-3 border-r border-nexara-accent/30">
-                                <div className="text-gray-400">Prize</div>
-                                <div className="font-semibold">{match.prize} coins</div>
-                              </div>
-                              <div className="px-3">
-                                <div className="text-gray-400">Players</div>
-                                <div className="font-semibold">{match.slots_filled}/{match.slots}</div>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="h-full flex items-center justify-center p-4">
-                            <Button 
-                              className="game-button h-10 px-3"
-                              disabled={!isJoinable}
-                              onClick={() => isJoinable && handleJoinMatch(match.id)}
-                            >
-                              Join
-                            </Button>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </div>
-            ) : (
-              <Card className="overflow-hidden">
-                <CardContent className="p-8 text-center">
-                  <Trophy className="h-12 w-12 text-nexara-accent mx-auto mb-4 opacity-50" />
-                  <h3 className="text-xl font-bold">No matches available</h3>
-                  <p className="text-gray-400 mt-2">
-                    There are no upcoming matches in this category yet.
-                  </p>
-                </CardContent>
-              </Card>
-            )}
-          </TabsContent>
-        </Tabs>
-      </section>
+        <Card className="bg-gray-800 border-gray-700">
+          <CardContent className="p-4 text-center">
+            <Trophy className="w-6 h-6 text-yellow-500 mx-auto mb-2" />
+            <p className="text-2xl font-bold text-white">{userStats.totalWins}</p>
+            <p className="text-sm text-gray-400">Total Wins</p>
+          </CardContent>
+        </Card>
 
-      <section className="bg-nexara-accent/10 rounded-xl p-6 text-center neon-border">
-        <h2 className="text-xl font-bold mb-2">New Player? Get 10 Free Coins!</h2>
-        <p className="text-gray-300 mb-4">Sign up now and receive 10 coins to join your first match!</p>
-        <div className="flex gap-4 justify-center">
-          <Button asChild variant="outline" className="border-nexara-accent hover:bg-nexara-accent/20">
-            <Link to="/login">Login</Link>
-          </Button>
-          <Button asChild className="game-button">
-            <Link to="/register">Register Now</Link>
-          </Button>
-        </div>
-      </section>
+        <Card className="bg-gray-800 border-gray-700">
+          <CardContent className="p-4 text-center">
+            <TrendingUp className="w-6 h-6 text-blue-500 mx-auto mb-2" />
+            <p className="text-2xl font-bold text-white">Lv.{userStats.level}</p>
+            <p className="text-sm text-gray-400">Player Level</p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gray-800 border-gray-700">
+          <CardContent className="p-4 text-center">
+            <Star className="w-6 h-6 text-purple-500 mx-auto mb-2" />
+            <p className="text-2xl font-bold text-white">{userStats.achievements}</p>
+            <p className="text-sm text-gray-400">Achievements</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Quick Actions */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card className="bg-gradient-to-br from-blue-500/20 to-purple-500/20 border-blue-500/50">
+          <CardHeader>
+            <CardTitle className="text-white flex items-center gap-2">
+              <Trophy className="w-5 h-5" />
+              Join a Match
+            </CardTitle>
+            <CardDescription>
+              Find opponents and start earning rewards
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Link to="/matches">
+              <Button className="w-full bg-blue-600 hover:bg-blue-700">
+                Browse Matches
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-green-500/20 to-teal-500/20 border-green-500/50">
+          <CardHeader>
+            <CardTitle className="text-white flex items-center gap-2">
+              <Users className="w-5 h-5" />
+              Invite Friends
+            </CardTitle>
+            <CardDescription>
+              Earn bonus coins for every friend you refer
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Link to="/referral">
+              <Button className="w-full bg-green-600 hover:bg-green-700">
+                Share & Earn
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Performance Overview */}
+      <Card className="bg-gray-800 border-gray-700">
+        <CardHeader>
+          <CardTitle className="text-white">Your Performance</CardTitle>
+          <CardDescription>Track your gaming progress</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="text-center space-y-2">
+              <p className="text-3xl font-bold text-white">{userStats.totalMatches}</p>
+              <p className="text-sm text-gray-400">Total Matches</p>
+            </div>
+            <div className="text-center space-y-2">
+              <p className="text-3xl font-bold text-white">{userStats.totalKills}</p>
+              <p className="text-sm text-gray-400">Total Kills</p>
+            </div>
+            <div className="text-center space-y-2">
+              <p className="text-3xl font-bold text-white">
+                {userStats.totalMatches > 0 ? Math.round((userStats.totalWins / userStats.totalMatches) * 100) : 0}%
+              </p>
+              <p className="text-sm text-gray-400">Win Rate</p>
+            </div>
+          </div>
+
+          <div className="mt-6 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-400">Level Progress</span>
+              <span className="text-sm text-gray-400">{userStats.xp} XP</span>
+            </div>
+            <div className="w-full bg-gray-700 rounded-full h-2">
+              <div 
+                className="bg-gradient-to-r from-blue-500 to-purple-500 h-2 rounded-full transition-all"
+                style={{ width: `${(userStats.xp % 1000) / 10}%` }}
+              ></div>
+            </div>
+          </div>
+
+          <div className="mt-4 flex justify-between">
+            <Link to="/achievements">
+              <Button variant="outline" size="sm">
+                View Achievements
+              </Button>
+            </Link>
+            <Link to="/profile">
+              <Button variant="outline" size="sm">
+                Edit Profile
+              </Button>
+            </Link>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
-};
-
-export default Index;
+}

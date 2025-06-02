@@ -9,6 +9,63 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      achievements: {
+        Row: {
+          created_at: string | null
+          description: string
+          icon: string
+          id: string
+          name: string
+          requirement_value: number
+          reward_coins: number | null
+          type: string
+        }
+        Insert: {
+          created_at?: string | null
+          description: string
+          icon: string
+          id?: string
+          name: string
+          requirement_value: number
+          reward_coins?: number | null
+          type: string
+        }
+        Update: {
+          created_at?: string | null
+          description?: string
+          icon?: string
+          id?: string
+          name?: string
+          requirement_value?: number
+          reward_coins?: number | null
+          type?: string
+        }
+        Relationships: []
+      }
+      daily_rewards: {
+        Row: {
+          claimed_at: string | null
+          id: string
+          reward_coins: number
+          streak_count: number | null
+          user_id: string
+        }
+        Insert: {
+          claimed_at?: string | null
+          id?: string
+          reward_coins: number
+          streak_count?: number | null
+          user_id: string
+        }
+        Update: {
+          claimed_at?: string | null
+          id?: string
+          reward_coins?: number
+          streak_count?: number | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       match_entries: {
         Row: {
           created_at: string
@@ -137,6 +194,39 @@ export type Database = {
         }
         Relationships: []
       }
+      referrals: {
+        Row: {
+          completed_at: string | null
+          created_at: string | null
+          id: string
+          referred_id: string
+          referred_reward: number | null
+          referrer_id: string
+          referrer_reward: number | null
+          status: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string | null
+          id?: string
+          referred_id: string
+          referred_reward?: number | null
+          referrer_id: string
+          referrer_reward?: number | null
+          status?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string | null
+          id?: string
+          referred_id?: string
+          referred_reward?: number | null
+          referrer_id?: string
+          referrer_reward?: number | null
+          status?: string | null
+        }
+        Relationships: []
+      }
       system_logs: {
         Row: {
           action: string
@@ -242,6 +332,97 @@ export type Database = {
         }
         Relationships: []
       }
+      user_achievements: {
+        Row: {
+          achievement_id: string
+          earned_at: string | null
+          id: string
+          user_id: string
+        }
+        Insert: {
+          achievement_id: string
+          earned_at?: string | null
+          id?: string
+          user_id: string
+        }
+        Update: {
+          achievement_id?: string
+          earned_at?: string | null
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_achievements_achievement_id_fkey"
+            columns: ["achievement_id"]
+            isOneToOne: false
+            referencedRelation: "achievements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string | null
+          game_id: string | null
+          has_completed_onboarding: boolean | null
+          id: string
+          level: number | null
+          referral_code: string | null
+          referred_by: string | null
+          total_kills: number | null
+          total_matches: number | null
+          total_wins: number | null
+          updated_at: string | null
+          user_id: string
+          username: string | null
+          xp: number | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string | null
+          game_id?: string | null
+          has_completed_onboarding?: boolean | null
+          id?: string
+          level?: number | null
+          referral_code?: string | null
+          referred_by?: string | null
+          total_kills?: number | null
+          total_matches?: number | null
+          total_wins?: number | null
+          updated_at?: string | null
+          user_id: string
+          username?: string | null
+          xp?: number | null
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string | null
+          game_id?: string | null
+          has_completed_onboarding?: boolean | null
+          id?: string
+          level?: number | null
+          referral_code?: string | null
+          referred_by?: string | null
+          total_kills?: number | null
+          total_matches?: number | null
+          total_wins?: number | null
+          updated_at?: string | null
+          user_id?: string
+          username?: string | null
+          xp?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_profiles_referred_by_fkey"
+            columns: ["referred_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           id: string
@@ -310,6 +491,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      generate_referral_code: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
       has_role: {
         Args: {
           _user_id: string

@@ -1,100 +1,123 @@
 
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import MainLayout from "./components/layout/MainLayout";
-import Index from "./pages/Index";
-import NotFound from "./pages/NotFound";
-import Matches from "./pages/Matches";
-import Wallet from "./pages/Wallet";
-import Profile from "./pages/Profile";
-import Notifications from "./pages/Notifications";
-import Login from "./pages/auth/Login";
-import Register from "./pages/auth/Register";
-import AdminDashboard from "./pages/admin/Dashboard";
-import MatchManagementPage from "./pages/admin/MatchManagement";
-import { CreateSuperadminUtility } from "./scripts/createSuperadmin";
-import { RouteGuard } from "./components/guards/RouteGuard";
-import { AuthProvider } from "./hooks/useAuth";
+import { Toaster } from "@/components/ui/toaster";
+import { AuthProvider } from "@/hooks/useAuth";
+import { MainLayout } from "@/components/layout/MainLayout";
+import { RouteGuard } from "@/components/guards/RouteGuard";
 
-const queryClient = new QueryClient();
+// Pages
+import Index from "@/pages/Index";
+import Login from "@/pages/auth/Login";
+import Register from "@/pages/auth/Register";
+import Matches from "@/pages/Matches";
+import Wallet from "@/pages/Wallet";
+import Profile from "@/pages/Profile";
+import Notifications from "@/pages/Notifications";
+import NotFound from "@/pages/NotFound";
+import Dashboard from "@/pages/admin/Dashboard";
+import MatchManagement from "@/pages/admin/MatchManagement";
+import ReferralPage from "@/pages/ReferralPage";
+import AchievementsPage from "@/pages/AchievementsPage";
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      retry: 1,
+    },
+  },
+});
+
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <Router>
         <AuthProvider>
           <Routes>
+            {/* Public Routes */}
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             
-            {/* Protected Admin Routes */}
-            <Route path="/admin" element={
-              <RouteGuard requireAuth requireAdmin>
-                <MainLayout>
-                  <AdminDashboard />
-                </MainLayout>
-              </RouteGuard>
-            } />
-            <Route path="/admin/matches" element={
-              <RouteGuard requireAuth requireAdmin>
-                <MainLayout>
-                  <MatchManagementPage />
-                </MainLayout>
-              </RouteGuard>
-            } />
+            {/* Protected Routes */}
+            <Route element={<MainLayout />}>
+              <Route path="/" element={<Index />} />
+              <Route 
+                path="/matches" 
+                element={
+                  <RouteGuard requireAuth>
+                    <Matches />
+                  </RouteGuard>
+                } 
+              />
+              <Route 
+                path="/wallet" 
+                element={
+                  <RouteGuard requireAuth>
+                    <Wallet />
+                  </RouteGuard>
+                } 
+              />
+              <Route 
+                path="/profile" 
+                element={
+                  <RouteGuard requireAuth>
+                    <Profile />
+                  </RouteGuard>
+                } 
+              />
+              <Route 
+                path="/notifications" 
+                element={
+                  <RouteGuard requireAuth>
+                    <Notifications />
+                  </RouteGuard>
+                } 
+              />
+              <Route 
+                path="/referral" 
+                element={
+                  <RouteGuard requireAuth>
+                    <ReferralPage />
+                  </RouteGuard>
+                } 
+              />
+              <Route 
+                path="/achievements" 
+                element={
+                  <RouteGuard requireAuth>
+                    <AchievementsPage />
+                  </RouteGuard>
+                } 
+              />
+              
+              {/* Admin Routes */}
+              <Route 
+                path="/admin/dashboard" 
+                element={
+                  <RouteGuard requireAuth requireAdmin>
+                    <Dashboard />
+                  </RouteGuard>
+                } 
+              />
+              <Route 
+                path="/admin/matches" 
+                element={
+                  <RouteGuard requireAuth requireAdmin>
+                    <MatchManagement />
+                  </RouteGuard>
+                } 
+              />
+            </Route>
             
-            {/* Standard User Routes */}
-            <Route path="/" element={
-              <RouteGuard requireAuth>
-                <MainLayout>
-                  <Index />
-                </MainLayout>
-              </RouteGuard>
-            } />
-            <Route path="/matches" element={
-              <RouteGuard requireAuth>
-                <MainLayout>
-                  <Matches />
-                </MainLayout>
-              </RouteGuard>
-            } />
-            <Route path="/wallet" element={
-              <RouteGuard requireAuth>
-                <MainLayout>
-                  <Wallet />
-                </MainLayout>
-              </RouteGuard>
-            } />
-            <Route path="/profile" element={
-              <RouteGuard requireAuth>
-                <MainLayout>
-                  <Profile />
-                </MainLayout>
-              </RouteGuard>
-            } />
-            <Route path="/notifications" element={
-              <RouteGuard requireAuth>
-                <MainLayout>
-                  <Notifications />
-                </MainLayout>
-              </RouteGuard>
-            } />
-            
-            {/* Temporary Superadmin Creator Utility */}
-            <Route path="/create-superadmin" element={<CreateSuperadminUtility />} />
-            
-            {/* 404 Page */}
-            <Route path="*" element={<MainLayout><NotFound /></MainLayout>} />
+            {/* 404 Route */}
+            <Route path="*" element={<NotFound />} />
           </Routes>
+          <Toaster />
         </AuthProvider>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+      </Router>
+    </QueryClientProvider>
+  );
+}
 
 export default App;
