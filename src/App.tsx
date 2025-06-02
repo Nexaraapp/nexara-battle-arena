@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { MainLayout } from "./components/layout/MainLayout";
+import MainLayout from "./components/layout/MainLayout";
 import Index from "./pages/Index";
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
@@ -76,7 +76,7 @@ function App() {
               <Route 
                 path="admin" 
                 element={
-                  <RouteGuard adminRequired>
+                  <RouteGuard requireAdmin>
                     <AdminDashboard />
                   </RouteGuard>
                 } 
@@ -84,7 +84,7 @@ function App() {
               <Route 
                 path="admin/matches" 
                 element={
-                  <RouteGuard adminRequired>
+                  <RouteGuard requireAdmin>
                     <AdminMatchManagement />
                   </RouteGuard>
                 } 
@@ -92,7 +92,7 @@ function App() {
               <Route 
                 path="admin/withdrawals" 
                 element={
-                  <RouteGuard adminRequired>
+                  <RouteGuard requireAdmin>
                     <WithdrawalManager />
                   </RouteGuard>
                 } 

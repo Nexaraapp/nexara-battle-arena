@@ -1,10 +1,10 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { MatchStatus, MatchType } from "./matchTypes";
-import PlayFabClient from "@/integrations/playfab/client";
 
 /**
- * PlayFab Integration - Join a matchmaking queue
+ * Join a matchmaking queue using Supabase instead of PlayFab
  */
 export const joinMatchQueue = async (
   queueType: MatchType,
@@ -35,38 +35,13 @@ export const joinMatchQueue = async (
       };
     }
     
-    // Join PlayFab matchmaking queue
-    const playerAttributes = {
-      skill: 100, // Example attribute, could be based on player stats
-      userId: userId
-    };
-    
-    const result = await PlayFabClient.joinMatchmakingQueue(queueType, playerAttributes);
-    
-    if (!result.success) {
-      // Refund the entry fee if matchmaking failed
-      await supabase
-        .from('transactions')
-        .insert({
-          user_id: userId,
-          amount: entryFee,
-          type: 'refund',
-          status: 'completed',
-          date: new Date().toISOString().split('T')[0],
-          notes: `Refund for failed ${queueType} matchmaking`
-        });
-      
-      toast.error(`Failed to join matchmaking: ${result.error}`);
-      return { 
-        success: false,
-        message: result.error || "Unknown error joining matchmaking" 
-      };
-    }
+    // Mock matchmaking implementation since PlayFab is removed
+    const ticketId = `ticket_${Date.now()}_${userId}`;
     
     toast.success("Joined matchmaking queue");
     return {
       success: true,
-      ticketId: result.data?.TicketId,
+      ticketId: ticketId,
       message: "Joined matchmaking queue successfully"
     };
   } catch (error) {
@@ -80,7 +55,7 @@ export const joinMatchQueue = async (
 };
 
 /**
- * PlayFab Integration - Cancel matchmaking request
+ * Cancel matchmaking request using Supabase instead of PlayFab
  */
 export const cancelMatchmaking = async (
   userId: string,
@@ -89,34 +64,23 @@ export const cancelMatchmaking = async (
   try {
     console.log(`Cancelling matchmaking for user ${userId}, ticket ${ticketId}`);
     
-    const result = await PlayFabClient.cancelMatchmaking(ticketId);
+    // Mock cancellation since PlayFab is removed
+    // Refund entry fee when cancelling
+    const defaultEntryFee = 10; 
     
-    if (result.success) {
-      // Refund entry fee when cancelling
-      // Note: This is a policy decision - you might choose not to refund
-      // if cancelled after a certain time threshold
-      
-      // In this demo we'll refund the full amount
-      // In a real implementation you'd look up the correct entry fee
-      const defaultEntryFee = 10; 
-      
-      await supabase
-        .from('transactions')
-        .insert({
-          user_id: userId,
-          amount: defaultEntryFee,
-          type: 'refund',
-          status: 'completed',
-          date: new Date().toISOString().split('T')[0],
-          notes: 'Refund for cancelled matchmaking'
-        });
-      
-      toast.success("Matchmaking cancelled");
-      return true;
-    } else {
-      toast.error(`Failed to cancel matchmaking: ${result.error}`);
-      return false;
-    }
+    await supabase
+      .from('transactions')
+      .insert({
+        user_id: userId,
+        amount: defaultEntryFee,
+        type: 'refund',
+        status: 'completed',
+        date: new Date().toISOString().split('T')[0],
+        notes: 'Refund for cancelled matchmaking'
+      });
+    
+    toast.success("Matchmaking cancelled");
+    return true;
   } catch (error) {
     console.error("Error cancelling matchmaking:", error);
     toast.error("Failed to cancel matchmaking");
@@ -125,7 +89,7 @@ export const cancelMatchmaking = async (
 };
 
 /**
- * PlayFab Integration - Check status of a matchmaking ticket
+ * Check status of a matchmaking ticket using Supabase instead of PlayFab
  */
 export const checkMatchmakingStatus = async (
   userId: string,
@@ -134,55 +98,30 @@ export const checkMatchmakingStatus = async (
   try {
     console.log(`Checking status for ticket ${ticketId}`);
     
-    const result = await PlayFabClient.checkMatchmakingStatus(ticketId);
+    // Mock status check since PlayFab is removed
+    // In a real implementation, you would check your database for match status
     
-    if (!result.success) {
-      console.error("Error checking matchmaking status:", result.error);
-      return { status: MatchStatus.Cancelled };
+    // For demo purposes, randomly return different statuses
+    const statuses = [MatchStatus.Matching, MatchStatus.InProgress, MatchStatus.Cancelled];
+    const randomStatus = statuses[Math.floor(Math.random() * statuses.length)];
+    
+    if (randomStatus === MatchStatus.InProgress) {
+      // Update transaction status from pending to completed
+      await supabase
+        .from('transactions')
+        .update({ status: 'completed' })
+        .eq('user_id', userId)
+        .eq('status', 'pending')
+        .eq('type', 'match_entry')
+        .is('match_id', null);
+        
+      return {
+        status: MatchStatus.InProgress,
+        matchId: `match_${Date.now()}`
+      };
     }
     
-    // Map PlayFab status to our MatchStatus enum
-    const ticketStatus = result.data?.Status;
-    
-    switch (ticketStatus) {
-      case "Matched":
-        // Update transaction status from pending to completed
-        await supabase
-          .from('transactions')
-          .update({ status: 'completed' })
-          .eq('user_id', userId)
-          .eq('status', 'pending')
-          .eq('type', 'match_entry')
-          .is('match_id', null);
-          
-        return {
-          status: MatchStatus.InProgress,
-          matchId: result.data?.MatchId
-        };
-        
-      case "Canceled":
-        return { status: MatchStatus.Cancelled };
-        
-      case "TimedOut":
-        // Refund entry fee for timed out matches
-        const defaultEntryFee = 10; // In a real impl, look up the correct fee
-        
-        await supabase
-          .from('transactions')
-          .insert({
-            user_id: userId,
-            amount: defaultEntryFee,
-            type: 'refund',
-            status: 'completed',
-            date: new Date().toISOString().split('T')[0],
-            notes: 'Refund for timed out matchmaking'
-          });
-          
-        return { status: MatchStatus.TimedOut };
-        
-      default:
-        return { status: MatchStatus.Matching };
-    }
+    return { status: randomStatus };
   } catch (error) {
     console.error("Error checking matchmaking status:", error);
     return {
@@ -192,8 +131,7 @@ export const checkMatchmakingStatus = async (
 };
 
 /**
- * PlayFab Integration - Update match with manual room ID and password
- * This allows setting custom room information for matches that were created
+ * Update match with manual room ID and password using Supabase instead of PlayFab
  */
 export const updateMatchWithRoomInfo = async (
   matchId: string,
@@ -203,20 +141,7 @@ export const updateMatchWithRoomInfo = async (
   try {
     console.log(`Updating match ${matchId} with room ID: ${roomId}`);
     
-    // Update match in PlayFab with room information
-    const result = await PlayFabClient.updateMatchWithRoomInfo(
-      matchId,
-      roomId,
-      roomPassword
-    );
-    
-    if (!result.success) {
-      console.error("Error updating match with room info:", result.error);
-      toast.error("Failed to update match with room information");
-      return false;
-    }
-    
-    // Update the match in our database as well if needed
+    // Update the match in our database
     const { error: dbError } = await supabase
       .from('matches')
       .update({
@@ -227,8 +152,8 @@ export const updateMatchWithRoomInfo = async (
       
     if (dbError) {
       console.error("Error updating database with room info:", dbError);
-      // We still return true as PlayFab update was successful
-      toast.warning("Room info updated in PlayFab but database update failed");
+      toast.error("Failed to update match with room information");
+      return false;
     } else {
       toast.success("Match room information updated successfully");
     }
@@ -242,7 +167,7 @@ export const updateMatchWithRoomInfo = async (
 };
 
 /**
- * PlayFab Integration - Get room information for a match
+ * Get room information for a match using Supabase instead of PlayFab
  */
 export const getMatchRoomInfo = async (
   matchId: string
@@ -250,7 +175,7 @@ export const getMatchRoomInfo = async (
   try {
     console.log(`Getting room info for match ${matchId}`);
     
-    // First try to get from our database
+    // Get from our database
     const { data, error } = await supabase
       .from('matches')
       .select('room_id, room_password')
@@ -265,19 +190,11 @@ export const getMatchRoomInfo = async (
       };
     }
     
-    // If not in our database, try PlayFab
-    const result = await PlayFabClient.getMatchDetails(matchId);
-    
-    if (!result.success) {
-      console.error("Error getting match details:", result.error);
-      return { success: false };
+    if (error) {
+      console.error("Error getting match details:", error);
     }
     
-    return {
-      roomId: result.data?.RoomId,
-      roomPassword: result.data?.RoomPassword,
-      success: true
-    };
+    return { success: false };
   } catch (error) {
     console.error("Error getting match room info:", error);
     return { success: false };

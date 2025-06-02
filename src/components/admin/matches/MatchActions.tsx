@@ -12,7 +12,6 @@ import {
 import { Info, Settings, BarChart3, RefreshCw, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { getPlayFabMatchmakingStats } from '@/utils/match/adminMatchOperations';
-import PlayFabClient from '@/integrations/playfab/client';
 import { useState } from 'react';
 
 export const MatchActions = () => {
@@ -24,17 +23,11 @@ export const MatchActions = () => {
       
       // Refresh stats for all queues
       const queueTypes = ["one_vs_one", "four_vs_four", "battle_royale_26_50"];
-      const results = await Promise.all(
-        queueTypes.map(queue => PlayFabClient.getMatchmakingStats(queue))
-      );
       
-      const allSuccessful = results.every(r => r.success);
+      // Mock refresh functionality since PlayFab is removed
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
-      if (allSuccessful) {
-        toast.success("Matchmaking statistics refreshed");
-      } else {
-        toast.error("Some queue statistics could not be refreshed");
-      }
+      toast.success("Matchmaking statistics refreshed");
       
       // Also get the overall matchmaking stats
       await getPlayFabMatchmakingStats();
@@ -72,11 +65,11 @@ export const MatchActions = () => {
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="outline">
-            PlayFab <ChevronDown className="ml-2 h-4 w-4" />
+            External Tools <ChevronDown className="ml-2 h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
-          <DropdownMenuLabel>PlayFab Tools</DropdownMenuLabel>
+          <DropdownMenuLabel>External Tools</DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuGroup>
             <DropdownMenuItem onClick={openPlayFabDashboard}>
@@ -85,7 +78,7 @@ export const MatchActions = () => {
             </DropdownMenuItem>
             <DropdownMenuItem onClick={openMatchmakingConfig}>
               <Settings className="mr-2 h-4 w-4" />
-              <span>Matchmaking Config</span>
+              <span>Config</span>
             </DropdownMenuItem>
             <DropdownMenuItem onClick={openPlayFabAnalytics}>
               <BarChart3 className="mr-2 h-4 w-4" />

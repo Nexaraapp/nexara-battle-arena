@@ -1,13 +1,12 @@
 
 import { Match, MatchType, MatchStatus, QueueStats, DatabaseMatch } from "./matchTypes";
 import { convertToLegacyMatch } from "./matchTypeConversions";
-import PlayFabClient from "@/integrations/playfab/client";
 
-// Fetch active matches using PlayFab API and convert to our Match format
+// Fetch active matches using Supabase instead of PlayFab
 export const getActiveMatches = async (): Promise<Match[]> => {
-  console.log("Fetching active matches from PlayFab");
+  console.log("Fetching active matches from database");
   try {
-    // Mock implementation - in a real app, this would call PlayFab API
+    // Mock implementation - in a real app, this would call Supabase API
     // For now, return some mock data
     const matches: Match[] = [
       {
@@ -39,9 +38,9 @@ export const getActiveMatches = async (): Promise<Match[]> => {
 
 // Get match by ID
 export const getMatchById = async (matchId: string): Promise<Match | null> => {
-  console.log(`Fetching match details for ${matchId} from PlayFab`);
+  console.log(`Fetching match details for ${matchId} from database`);
   try {
-    // Mock implementation - in a real app, this would call PlayFab API
+    // Mock implementation - in a real app, this would call Supabase API
     const match: Match = {
       id: matchId,
       type: MatchType.OneVsOne,
@@ -63,9 +62,9 @@ export const getMatchById = async (matchId: string): Promise<Match | null> => {
 export const getMatchesByStatus = async (
   status: MatchStatus | MatchStatus[]
 ): Promise<Match[]> => {
-  console.log(`Fetching matches with status ${status} from PlayFab`);
+  console.log(`Fetching matches with status ${status} from database`);
   try {
-    // Mock implementation - in a real app, this would call PlayFab API
+    // Mock implementation - in a real app, this would call Supabase API
     const statuses = Array.isArray(status) ? status : [status];
     
     // Create mock data based on the requested statuses
@@ -92,9 +91,9 @@ export const getMatchesByStatus = async (
 
 // Get matches by player
 export const getMatchesByPlayer = async (playerId: string): Promise<Match[]> => {
-  console.log(`Fetching matches for player ${playerId} from PlayFab`);
+  console.log(`Fetching matches for player ${playerId} from database`);
   try {
-    // Mock implementation - in a real app, this would call PlayFab API
+    // Mock implementation - in a real app, this would call Supabase API
     const matches: Match[] = [
       {
         id: `match_${Date.now()}_1`,
@@ -125,9 +124,9 @@ export const getMatchesByPlayer = async (playerId: string): Promise<Match[]> => 
 
 // Get queue stats for a specific queue
 export const getQueueStats = async (queueName: MatchType): Promise<QueueStats> => {
-  console.log(`Fetching stats for queue ${queueName} from PlayFab`);
+  console.log(`Fetching stats for queue ${queueName} from database`);
   try {
-    // Mock implementation - in a real app, this would call PlayFab API
+    // Mock implementation - in a real app, this would call Supabase API
     const waitTime = Math.floor(Math.random() * 60) + 30; // 30-90 seconds
     const playersInQueue = Math.floor(Math.random() * 20); // 0-20 players
     
@@ -150,9 +149,9 @@ export const getQueueStats = async (queueName: MatchType): Promise<QueueStats> =
 
 // Get stats for all queues
 export const getAllQueueStats = async (): Promise<QueueStats[]> => {
-  console.log("Fetching stats for all queues from PlayFab");
+  console.log("Fetching stats for all queues from database");
   try {
-    // Mock implementation - in a real app, this would call PlayFab API
+    // Mock implementation - in a real app, this would call Supabase API
     const queueTypes = [MatchType.OneVsOne, MatchType.FourVsFour, MatchType.BattleRoyale];
     
     const stats: QueueStats[] = await Promise.all(

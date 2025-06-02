@@ -1,10 +1,9 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import PlayFabClient from "@/integrations/playfab/client";
 
 /**
- * PlayFab Integration - Submit match results
+ * Submit match results using Supabase instead of PlayFab
  */
 export const submitMatchResults = async (
   matchId: string,
@@ -15,25 +14,15 @@ export const submitMatchResults = async (
   try {
     console.log(`Submitting match results for ${matchId}, user ${userId}, winner: ${isWinner}`);
     
-    // Update player stats in PlayFab
+    // Update player stats in database
     const statistics = {
       Wins: isWinner ? 1 : 0,
       Matches: 1,
       Score: score || 0
     };
     
-    const result = await PlayFabClient.submitMatchResults(
-      matchId,
-      userId,
-      isWinner,
-      statistics
-    );
-    
-    if (!result.success) {
-      console.error("Error submitting match results:", result.error);
-      toast.error("Failed to submit match results");
-      return false;
-    }
+    // In a real implementation, you would store these stats in your database
+    console.log("Match statistics:", statistics);
     
     // If player won, award them the prize
     if (isWinner) {

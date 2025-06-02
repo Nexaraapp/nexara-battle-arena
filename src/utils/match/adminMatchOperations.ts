@@ -1,5 +1,4 @@
 
-import { PlayFabClient } from "@/integrations/playfab/client";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Match, MatchType, MatchStatus, DatabaseMatch } from "./matchTypes";
@@ -7,21 +6,20 @@ import { handleError, createMatchError } from "../errorHandling";
 import { logAdminAction } from "../adminUtils";
 
 /**
- * View PlayFab matchmaking statistics
+ * View matchmaking statistics (mock implementation without PlayFab)
  */
 export const getPlayFabMatchmakingStats = async (): Promise<any> => {
   try {
-    console.log("Getting PlayFab matchmaking statistics");
+    console.log("Getting matchmaking statistics");
     
-    // Get stats for each queue
+    // Get stats for each queue (mock data since PlayFab is removed)
     const queueTypes = ["one_vs_one", "four_vs_four", "battle_royale_26_50"];
     let totalPlayersInQueues = 0;
     let totalWaitTime = 0;
     let activeQueues = 0;
     
     for (const queue of queueTypes) {
-      // In a real implementation, this would call PlayFab API
-      // For now, we'll return mock data
+      // Mock implementation - in a real app, this would call actual matchmaking API
       const playerCount = Math.floor(Math.random() * 20);
       const waitTime = Math.floor(Math.random() * 60) + 30; // 30-90 seconds
       
@@ -121,7 +119,7 @@ export const createMatch = async (params: CreateMatchParams): Promise<string | n
 };
 
 /**
- * Configure PlayFab matchmaking rules 
+ * Configure matchmaking rules (mock implementation without PlayFab)
  */
 export const configureMatchmakingRules = async (
   queueName: string,
@@ -130,7 +128,7 @@ export const configureMatchmakingRules = async (
 ): Promise<boolean> => {
   try {
     console.log(`Configuring rules for queue ${queueName}`);
-    // In a real implementation, this would call PlayFab APIs to update queue settings
+    // In a real implementation, this would call actual matchmaking APIs to update queue settings
     
     toast.success("Queue configuration updated");
     return true;
