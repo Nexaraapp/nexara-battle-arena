@@ -1,3 +1,4 @@
+
 import { PlayFabClient } from "@/integrations/playfab/client";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -68,11 +69,8 @@ interface CreateMatchParams {
  */
 export const createMatch = async (params: CreateMatchParams): Promise<string | null> => {
   try {
-    // Calculate total prize pool
-    const totalPrize = (params.first_prize || 0) + 
-                      (params.second_prize || 0) + 
-                      (params.third_prize || 0) + 
-                      ((params.coins_per_kill || 0) * params.slots);
+    // Calculate prize based on entry fee and slots for now
+    const calculatedPrize = params.entry_fee * params.slots;
 
     // Create the match in the database
     const { data, error } = await supabase
@@ -83,6 +81,7 @@ export const createMatch = async (params: CreateMatchParams): Promise<string | n
         type: params.type,
         mode: params.mode,
         entry_fee: params.entry_fee,
+        prize: calculatedPrize,
         slots: params.slots,
         slots_filled: 0,
         first_prize: params.first_prize,
@@ -93,8 +92,7 @@ export const createMatch = async (params: CreateMatchParams): Promise<string | n
         room_password: params.room_password,
         status: 'upcoming',
         created_by: params.admin_id,
-        created_at: new Date().toISOString(),
-        total_prize_pool: totalPrize
+        created_at: new Date().toISOString()
       })
       .select('id')
       .single();

@@ -1,6 +1,6 @@
+
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { requestNotificationPermission, onMessageListener } from '@/integrations/firebase/config';
 import { toast } from 'sonner';
 
 export const useNotifications = () => {
@@ -17,46 +17,17 @@ export const useNotifications = () => {
     // Get current permission status
     setNotificationPermission(Notification.permission);
 
-    // If already granted, get FCM token
+    // If already granted, setup notifications
     if (Notification.permission === 'granted') {
-      setupNotifications();
+      setupBasicNotifications();
     }
   }, []);
 
-  const setupNotifications = async () => {
+  const setupBasicNotifications = async () => {
     try {
-      // Get FCM token
-      const token = await requestNotificationPermission();
-      setFcmToken(token);
-
-      // Save token to user's profile in Supabase
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        const { error } = await supabase
-          .from('user_profiles')
-          .upsert({
-            user_id: session.user.id,
-            fcm_token: token,
-            updated_at: new Date().toISOString()
-          }, {
-            onConflict: 'user_id'
-          });
-
-        if (error) {
-          console.error('Error saving FCM token:', error);
-        }
-      }
-
-      // Listen for foreground messages
-      onMessageListener()
-        .then((payload: any) => {
-          toast(payload.notification.title, {
-            description: payload.notification.body,
-            action: payload.data?.action,
-          });
-        })
-        .catch(err => console.error('Error receiving message:', err));
-
+      // For now, we'll use basic web notifications without Firebase
+      // Firebase integration can be added later when properly configured
+      console.log('Basic notifications setup complete');
     } catch (error) {
       console.error('Error setting up notifications:', error);
     }
@@ -64,9 +35,15 @@ export const useNotifications = () => {
 
   const requestPermission = async () => {
     try {
-      await requestNotificationPermission();
-      setNotificationPermission('granted');
-      await setupNotifications();
+      const permission = await Notification.requestPermission();
+      setNotificationPermission(permission);
+      
+      if (permission === 'granted') {
+        await setupBasicNotifications();
+        toast.success('Notifications enabled successfully');
+      } else {
+        toast.error('Notification permission denied');
+      }
     } catch (error) {
       console.error('Error requesting notification permission:', error);
       setNotificationPermission('denied');
@@ -79,4 +56,4 @@ export const useNotifications = () => {
     requestPermission,
     isSupported: 'Notification' in window
   };
-}; 
+};

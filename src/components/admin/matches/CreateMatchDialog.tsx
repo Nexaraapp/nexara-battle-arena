@@ -46,7 +46,7 @@ const formSchema = z.object({
   room_id: z.string().optional(),
   room_password: z.string().optional(),
   mode: z.string().optional(),
-  type: z.string(),
+  type: z.string().min(1, "Match type is required"),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -86,10 +86,24 @@ export function CreateMatchDialog({ onMatchCreated }: CreateMatchDialogProps) {
 
     setLoading(true);
     try {
-      const matchId = await createMatch({
-        ...values,
+      // Ensure all required fields are present
+      const matchData = {
+        title: values.title,
+        description: values.description || "",
+        type: values.type,
+        mode: values.mode || "",
+        entry_fee: values.entry_fee,
+        slots: values.slots,
+        first_prize: values.first_prize || 0,
+        second_prize: values.second_prize || 0,
+        third_prize: values.third_prize || 0,
+        coins_per_kill: values.coins_per_kill || 0,
+        room_id: values.room_id || "",
+        room_password: values.room_password || "",
         admin_id: user.id,
-      });
+      };
+
+      const matchId = await createMatch(matchData);
 
       if (matchId) {
         toast.success("Match created successfully");
@@ -353,4 +367,4 @@ export function CreateMatchDialog({ onMatchCreated }: CreateMatchDialogProps) {
       </DialogContent>
     </Dialog>
   );
-} 
+}
