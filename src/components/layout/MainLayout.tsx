@@ -1,17 +1,14 @@
 
-import React, { ReactNode } from "react";
+import React from "react";
+import { Outlet } from "react-router-dom";
 import { useLocation } from "react-router-dom";
-import Navbar from "./Navbar";
+import { Navbar } from "./Navbar";
 import BottomNav from "./BottomNav";
 import { AdminGestureDetector } from "../admin/AdminGestureDetector";
 import { SuperadminGestureDetector } from "../admin/SuperadminGestureDetector";
 import { cn } from "@/lib/utils";
 
-type MainLayoutProps = {
-  children: ReactNode;
-};
-
-const MainLayout = ({ children }: MainLayoutProps) => {
+const MainLayout = () => {
   const location = useLocation();
   const isAdminRoute = location.pathname.startsWith("/admin");
 
@@ -25,7 +22,7 @@ const MainLayout = ({ children }: MainLayoutProps) => {
           isAdminRoute ? "pt-4" : "pt-20"
         )}
       >
-        {children}
+        <Outlet />
       </main>
 
       {!isAdminRoute && <BottomNav />}

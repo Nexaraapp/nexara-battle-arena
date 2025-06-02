@@ -5,7 +5,7 @@ import { Home, Trophy, Wallet, Bell, User, Gift, Star } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
 
-export const BottomNav: React.FC = () => {
+const BottomNav: React.FC = () => {
   const location = useLocation();
   const { isAuthenticated } = useAuth();
 
@@ -54,3 +54,5 @@ export const BottomNav: React.FC = () => {
     </nav>
   );
 };
+
+export default BottomNav;
