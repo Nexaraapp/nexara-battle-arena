@@ -1,11 +1,11 @@
 
 import React from 'react';
-import { WithdrawalManagement } from '@/components/admin/WithdrawalManagement';
+import { EnhancedWithdrawalManagement } from '@/components/admin/EnhancedWithdrawalManagement';
 
 const WithdrawalManager = () => {
   return (
     <div className="container mx-auto px-4 py-8">
-      <WithdrawalManagement />
+      <EnhancedWithdrawalManagement />
     </div>
   );
 };

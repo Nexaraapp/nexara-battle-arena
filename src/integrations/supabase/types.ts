@@ -70,6 +70,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          ign: string | null
           match_id: string
           paid: boolean
           slot_number: number
@@ -78,6 +79,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          ign?: string | null
           match_id: string
           paid?: boolean
           slot_number: number
@@ -86,6 +88,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          ign?: string | null
           match_id?: string
           paid?: boolean
           slot_number?: number
@@ -230,6 +233,42 @@ export type Database = {
           referrer_id?: string
           referrer_reward?: number | null
           status?: string | null
+        }
+        Relationships: []
+      }
+      rules: {
+        Row: {
+          category: string
+          content: string
+          created_at: string | null
+          created_by: string | null
+          id: string
+          is_active: boolean | null
+          order_index: number | null
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          category: string
+          content: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_active?: boolean | null
+          order_index?: number | null
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          category?: string
+          content?: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_active?: boolean | null
+          order_index?: number | null
+          title?: string
+          updated_at?: string | null
         }
         Relationships: []
       }
@@ -447,6 +486,36 @@ export type Database = {
         }
         Relationships: []
       }
+      withdrawal_settings: {
+        Row: {
+          end_time: string
+          estimated_processing_hours: number | null
+          id: string
+          is_active: boolean | null
+          start_time: string
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          end_time?: string
+          estimated_processing_hours?: number | null
+          id?: string
+          is_active?: boolean | null
+          start_time?: string
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          end_time?: string
+          estimated_processing_hours?: number | null
+          id?: string
+          is_active?: boolean | null
+          start_time?: string
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       withdrawal_tiers: {
         Row: {
           amount: number
@@ -468,35 +537,56 @@ export type Database = {
       withdrawals: {
         Row: {
           admin_note: string | null
+          admin_tags: string[] | null
           amount: number | null
           created_at: string | null
           id: number
+          is_suspicious: boolean | null
+          preferred_time_slot: string | null
+          private_notes: string | null
           processed_at: string | null
           processed_by: string | null
+          public_notes: string | null
+          qr_code_url: string | null
           qr_url: string | null
           status: string | null
+          upi_id: string | null
           user_id: string | null
         }
         Insert: {
           admin_note?: string | null
+          admin_tags?: string[] | null
           amount?: number | null
           created_at?: string | null
           id?: number
+          is_suspicious?: boolean | null
+          preferred_time_slot?: string | null
+          private_notes?: string | null
           processed_at?: string | null
           processed_by?: string | null
+          public_notes?: string | null
+          qr_code_url?: string | null
           qr_url?: string | null
           status?: string | null
+          upi_id?: string | null
           user_id?: string | null
         }
         Update: {
           admin_note?: string | null
+          admin_tags?: string[] | null
           amount?: number | null
           created_at?: string | null
           id?: number
+          is_suspicious?: boolean | null
+          preferred_time_slot?: string | null
+          private_notes?: string | null
           processed_at?: string | null
           processed_by?: string | null
+          public_notes?: string | null
+          qr_code_url?: string | null
           qr_url?: string | null
           status?: string | null
+          upi_id?: string | null
           user_id?: string | null
         }
         Relationships: []
@@ -510,6 +600,15 @@ export type Database = {
         Args: { withdrawal_id: number; admin_id: string; admin_note?: string }
         Returns: boolean
       }
+      approve_withdrawal_v2: {
+        Args: {
+          withdrawal_id: number
+          admin_id: string
+          public_note?: string
+          private_note?: string
+        }
+        Returns: boolean
+      }
       generate_referral_code: {
         Args: Record<PropertyKey, never>
         Returns: string
@@ -521,12 +620,25 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_withdrawal_time_allowed: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
       process_referral_bonus: {
         Args: { referred_user_id: string }
         Returns: boolean
       }
       reject_withdrawal: {
         Args: { withdrawal_id: number; admin_id: string; admin_note?: string }
+        Returns: boolean
+      }
+      reject_withdrawal_v2: {
+        Args: {
+          withdrawal_id: number
+          admin_id: string
+          public_note?: string
+          private_note?: string
+        }
         Returns: boolean
       }
     }

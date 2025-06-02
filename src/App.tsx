@@ -12,6 +12,7 @@ import MatchesListPage from "./pages/MatchesListPage";
 import MatchDetailPage from "./pages/MatchDetailPage";
 import Profile from "./pages/Profile";
 import Wallet from "./pages/Wallet";
+import WithdrawalPage from "./pages/WithdrawalPage";
 import ReferralPage from "./pages/ReferralPage";
 import AchievementsPage from "./pages/AchievementsPage";
 import Notifications from "./pages/Notifications";
@@ -20,6 +21,8 @@ import AdminMatchManagement from "./pages/admin/MatchManagement";
 import WithdrawalManager from "./pages/admin/WithdrawalManager";
 import NotFound from "./pages/NotFound";
 import { RouteGuard } from "./components/guards/RouteGuard";
+import { RulesPage } from "./components/rules/RulesPage";
+import { MatchModeSection } from "./components/matches/MatchModeSection";
 
 const queryClient = new QueryClient();
 
@@ -35,7 +38,9 @@ function App() {
             <Route index element={<Index />} />
             <Route path="matches" element={<Matches />} />
             <Route path="matches-list" element={<MatchesListPage />} />
+            <Route path="matches-mode" element={<MatchModeSection />} />
             <Route path="match/:matchId" element={<MatchDetailPage />} />
+            <Route path="rules" element={<RulesPage />} />
             <Route 
               path="profile" 
               element={
@@ -49,6 +54,14 @@ function App() {
               element={
                 <RouteGuard>
                   <Wallet />
+                </RouteGuard>
+              } 
+            />
+            <Route 
+              path="withdraw" 
+              element={
+                <RouteGuard>
+                  <WithdrawalPage />
                 </RouteGuard>
               } 
             />
