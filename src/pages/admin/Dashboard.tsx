@@ -1,3 +1,4 @@
+
 import React, { Suspense, lazy, useEffect, useState } from 'react';
 import { Loader2, UserPlus, Users, Activity, Award } from 'lucide-react';
 import { MatchManagement } from '@/components/admin/MatchManagement';
@@ -76,28 +77,9 @@ const Dashboard = () => {
     logAdminAction(user?.id || '', 'Accessed Match Management', 'Navigated to match management page');
   };
 
-  const handleReviewWithdrawals = async () => {
-    // For now, we'll fetch and show withdrawal info in a toast
-    try {
-      const { data, error } = await supabase
-        .from('withdrawals')
-        .select('*')
-        .eq('status', 'pending')
-        .limit(5);
-        
-      if (error) throw error;
-      
-      if (data && data.length > 0) {
-        toast.info(`${data.length} withdrawal requests pending review`);
-      } else {
-        toast.info("No pending withdrawals to review");
-      }
-      
-      logAdminAction(user?.id || '', 'Checked Withdrawals', 'Viewed pending withdrawal requests');
-    } catch (error) {
-      console.error("Error checking withdrawals:", error);
-      toast.error("Failed to fetch withdrawal information");
-    }
+  const handleReviewWithdrawals = () => {
+    navigate('/admin/withdrawals');
+    logAdminAction(user?.id || '', 'Accessed Withdrawal Management', 'Navigated to withdrawal management page');
   };
 
   const handleSystemSettings = async () => {

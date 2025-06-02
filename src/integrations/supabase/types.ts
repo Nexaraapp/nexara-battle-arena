@@ -196,31 +196,37 @@ export type Database = {
       }
       referrals: {
         Row: {
+          bonus_granted: boolean | null
           completed_at: string | null
           created_at: string | null
           id: string
           referred_id: string
           referred_reward: number | null
+          referred_user_purchased: boolean | null
           referrer_id: string
           referrer_reward: number | null
           status: string | null
         }
         Insert: {
+          bonus_granted?: boolean | null
           completed_at?: string | null
           created_at?: string | null
           id?: string
           referred_id: string
           referred_reward?: number | null
+          referred_user_purchased?: boolean | null
           referrer_id: string
           referrer_reward?: number | null
           status?: string | null
         }
         Update: {
+          bonus_granted?: boolean | null
           completed_at?: string | null
           created_at?: string | null
           id?: string
           referred_id?: string
           referred_reward?: number | null
+          referred_user_purchased?: boolean | null
           referrer_id?: string
           referrer_reward?: number | null
           status?: string | null
@@ -461,25 +467,34 @@ export type Database = {
       }
       withdrawals: {
         Row: {
+          admin_note: string | null
           amount: number | null
           created_at: string | null
           id: number
+          processed_at: string | null
+          processed_by: string | null
           qr_url: string | null
           status: string | null
           user_id: string | null
         }
         Insert: {
+          admin_note?: string | null
           amount?: number | null
           created_at?: string | null
           id?: number
+          processed_at?: string | null
+          processed_by?: string | null
           qr_url?: string | null
           status?: string | null
           user_id?: string | null
         }
         Update: {
+          admin_note?: string | null
           amount?: number | null
           created_at?: string | null
           id?: number
+          processed_at?: string | null
+          processed_by?: string | null
           qr_url?: string | null
           status?: string | null
           user_id?: string | null
@@ -491,6 +506,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      approve_withdrawal: {
+        Args: { withdrawal_id: number; admin_id: string; admin_note?: string }
+        Returns: boolean
+      }
       generate_referral_code: {
         Args: Record<PropertyKey, never>
         Returns: string
@@ -500,6 +519,14 @@ export type Database = {
           _user_id: string
           _role: Database["public"]["Enums"]["app_role"]
         }
+        Returns: boolean
+      }
+      process_referral_bonus: {
+        Args: { referred_user_id: string }
+        Returns: boolean
+      }
+      reject_withdrawal: {
+        Args: { withdrawal_id: number; admin_id: string; admin_note?: string }
         Returns: boolean
       }
     }

@@ -1,121 +1,107 @@
 
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { Toaster } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Toaster } from "@/components/ui/toaster";
-import { AuthProvider } from "@/hooks/useAuth";
-import MainLayout from "@/components/layout/MainLayout";
-import { RouteGuard } from "@/components/guards/RouteGuard";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { MainLayout } from "./components/layout/MainLayout";
+import Index from "./pages/Index";
+import Login from "./pages/auth/Login";
+import Register from "./pages/auth/Register";
+import Matches from "./pages/Matches";
+import Profile from "./pages/Profile";
+import Wallet from "./pages/Wallet";
+import ReferralPage from "./pages/ReferralPage";
+import AchievementsPage from "./pages/AchievementsPage";
+import Notifications from "./pages/Notifications";
+import AdminDashboard from "./pages/admin/Dashboard";
+import AdminMatchManagement from "./pages/admin/MatchManagement";
+import WithdrawalManager from "./pages/admin/WithdrawalManager";
+import NotFound from "./pages/NotFound";
+import { RouteGuard } from "./components/guards/RouteGuard";
 
-// Pages
-import Index from "@/pages/Index";
-import Login from "@/pages/auth/Login";
-import Register from "@/pages/auth/Register";
-import Matches from "@/pages/Matches";
-import Wallet from "@/pages/Wallet";
-import Profile from "@/pages/Profile";
-import Notifications from "@/pages/Notifications";
-import NotFound from "@/pages/NotFound";
-import Dashboard from "@/pages/admin/Dashboard";
-import MatchManagement from "@/pages/admin/MatchManagement";
-import ReferralPage from "@/pages/ReferralPage";
-import AchievementsPage from "@/pages/AchievementsPage";
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 5 * 60 * 1000, // 5 minutes
-      retry: 1,
-    },
-  },
-});
+const queryClient = new QueryClient();
 
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <Router>
-        <AuthProvider>
+      <TooltipProvider>
+        <Toaster />
+        <BrowserRouter>
           <Routes>
-            {/* Public Routes */}
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
-            
-            {/* Protected Routes */}
-            <Route element={<MainLayout />}>
-              <Route path="/" element={<Index />} />
+            <Route path="/" element={<MainLayout />}>
+              <Route index element={<Index />} />
+              <Route path="matches" element={<Matches />} />
               <Route 
-                path="/matches" 
+                path="profile" 
                 element={
-                  <RouteGuard requireAuth>
-                    <Matches />
-                  </RouteGuard>
-                } 
-              />
-              <Route 
-                path="/wallet" 
-                element={
-                  <RouteGuard requireAuth>
-                    <Wallet />
-                  </RouteGuard>
-                } 
-              />
-              <Route 
-                path="/profile" 
-                element={
-                  <RouteGuard requireAuth>
+                  <RouteGuard>
                     <Profile />
                   </RouteGuard>
                 } 
               />
               <Route 
-                path="/notifications" 
+                path="wallet" 
                 element={
-                  <RouteGuard requireAuth>
-                    <Notifications />
+                  <RouteGuard>
+                    <Wallet />
                   </RouteGuard>
                 } 
               />
               <Route 
-                path="/referral" 
+                path="referral" 
                 element={
-                  <RouteGuard requireAuth>
+                  <RouteGuard>
                     <ReferralPage />
                   </RouteGuard>
                 } 
               />
               <Route 
-                path="/achievements" 
+                path="achievements" 
                 element={
-                  <RouteGuard requireAuth>
+                  <RouteGuard>
                     <AchievementsPage />
                   </RouteGuard>
                 } 
               />
-              
-              {/* Admin Routes */}
               <Route 
-                path="/admin/dashboard" 
+                path="notifications" 
                 element={
-                  <RouteGuard requireAuth requireAdmin>
-                    <Dashboard />
+                  <RouteGuard>
+                    <Notifications />
                   </RouteGuard>
                 } 
               />
               <Route 
-                path="/admin/matches" 
+                path="admin" 
                 element={
-                  <RouteGuard requireAuth requireAdmin>
-                    <MatchManagement />
+                  <RouteGuard adminRequired>
+                    <AdminDashboard />
+                  </RouteGuard>
+                } 
+              />
+              <Route 
+                path="admin/matches" 
+                element={
+                  <RouteGuard adminRequired>
+                    <AdminMatchManagement />
+                  </RouteGuard>
+                } 
+              />
+              <Route 
+                path="admin/withdrawals" 
+                element={
+                  <RouteGuard adminRequired>
+                    <WithdrawalManager />
                   </RouteGuard>
                 } 
               />
             </Route>
-            
-            {/* 404 Route */}
             <Route path="*" element={<NotFound />} />
           </Routes>
-          <Toaster />
-        </AuthProvider>
-      </Router>
+        </BrowserRouter>
+      </TooltipProvider>
     </QueryClientProvider>
   );
 }

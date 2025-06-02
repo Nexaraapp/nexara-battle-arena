@@ -2,6 +2,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { Transaction } from "./transactionTypes";
 import { toast } from "sonner";
+import { processReferralBonusOnPurchase } from "./referralApi";
 
 export const hasEnoughRealCoins = async (userId: string, amount: number): Promise<boolean> => {
   try {
@@ -79,6 +80,12 @@ export const addTransaction = async (transaction: Omit<Transaction, 'id'>): Prom
       console.error("Error adding transaction:", error);
       return null;
     }
+
+    // Check if this is a top-up transaction and process referral bonus
+    if (transaction.type === 'topup' && transaction.amount > 0) {
+      await processReferralBonusOnPurchase(transaction.user_id);
+    }
+
     return data.id;
   } catch (error) {
     console.error("Error in addTransaction:", error);
@@ -119,7 +126,8 @@ export const createTopUpRequest = async (
         amount,
         status: 'pending',
         date: new Date().toISOString().split('T')[0],
-        notes: `Top-up via ${method}. Transaction ID: ${transactionId}`
+        notes: `Top-up via ${method}. Transaction ID: ${transactionId}`,
+        is_real_coins: true
       });
     if (error) {
       console.error("Error creating top-up request:", error);
