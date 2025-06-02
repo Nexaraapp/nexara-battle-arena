@@ -8,7 +8,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Loader2, Save } from "lucide-react";
 import { logAdminAction } from "@/utils/adminUtils";
-import { updateMatchWithRoomInfo } from "@/utils/match/matchmakingOperations";
 
 import {
   Form,
@@ -128,7 +127,6 @@ export default function MatchDetailsEditor({ matchId, open, onClose }: MatchDeta
   const onSubmit = async (values: FormValues) => {
     setLoading(true);
     try {
-      // Update the match in the database
       const { error } = await supabase
         .from("matches")
         .update({
@@ -150,23 +148,10 @@ export default function MatchDetailsEditor({ matchId, open, onClose }: MatchDeta
 
       if (error) throw error;
 
-      // If room info was updated, also update it in PlayFab
-      if (values.room_id && values.room_password) {
-        const updated = await updateMatchWithRoomInfo(
-          matchId,
-          values.room_id,
-          values.room_password
-        );
-        
-        if (!updated) {
-          toast.warning("Match updated in database but PlayFab update failed");
-        }
-      }
-
       await logAdminAction(
         user?.id || "",
         "Updated Match",
-        `Updated match ${matchId} details including room information`
+        `Updated match ${matchId} details including room information and rewards`
       );
 
       toast.success("Match details updated successfully");
@@ -179,9 +164,11 @@ export default function MatchDetailsEditor({ matchId, open, onClose }: MatchDeta
     }
   };
 
+  const canEditRoomDetails = match?.status === 'upcoming' || match?.status === 'in_progress';
+
   return (
     <Dialog open={open} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit Match Details</DialogTitle>
         </DialogHeader>
@@ -192,229 +179,206 @@ export default function MatchDetailsEditor({ matchId, open, onClose }: MatchDeta
           </div>
         ) : (
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="title"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Match Title</FormLabel>
-                      <FormControl>
-                        <Input {...field} placeholder="Enter match title" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="status"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Status</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                      >
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              {/* Basic Match Info */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium">Basic Information</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="title"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Match Title</FormLabel>
                         <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select status" />
-                          </SelectTrigger>
+                          <Input {...field} placeholder="Enter match title" />
                         </FormControl>
-                        <SelectContent>
-                          <SelectItem value="upcoming">Upcoming</SelectItem>
-                          <SelectItem value="active">Active</SelectItem>
-                          <SelectItem value="completed">Completed</SelectItem>
-                          <SelectItem value="cancelled">Cancelled</SelectItem>
-                        </SelectContent>
-                      </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="status"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Status</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select status" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="upcoming">Upcoming</SelectItem>
+                            <SelectItem value="in_progress">In Progress</SelectItem>
+                            <SelectItem value="completed">Completed</SelectItem>
+                            <SelectItem value="cancelled">Cancelled</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <FormField
+                  control={form.control}
+                  name="description"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Description</FormLabel>
+                      <FormControl>
+                        <Textarea {...field} placeholder="Match description" rows={3} />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-              </div>
 
-              <FormField
-                control={form.control}
-                name="description"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Description</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        {...field}
-                        placeholder="Match description"
-                        rows={3}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="type"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Match Type</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select match type" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="one_vs_one">1v1</SelectItem>
+                            <SelectItem value="four_vs_four">4v4</SelectItem>
+                            <SelectItem value="battle_royale_26_50">Battle Royale</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="type"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Match Type</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                      >
+                  <FormField
+                    control={form.control}
+                    name="mode"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Game Mode</FormLabel>
                         <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select match type" />
-                          </SelectTrigger>
+                          <Input {...field} placeholder="Mode (e.g. TPP, FPP, Solo, Duo)" />
                         </FormControl>
-                        <SelectContent>
-                          <SelectItem value="one_vs_one">1v1</SelectItem>
-                          <SelectItem value="four_vs_four">4v4</SelectItem>
-                          <SelectItem value="battle_royale_26_50">
-                            Battle Royale
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
+
+              {/* Match Settings */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium">Match Settings</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="entry_fee"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Entry Fee (coins)</FormLabel>
+                        <FormControl>
+                          <Input type="number" {...field} min={0} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="slots"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Total Slots</FormLabel>
+                        <FormControl>
+                          <Input type="number" {...field} min={2} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
 
                 <FormField
                   control={form.control}
-                  name="mode"
+                  name="coins_per_kill"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Game Mode</FormLabel>
+                      <FormLabel>Coins per Kill</FormLabel>
                       <FormControl>
-                        <Input
-                          {...field}
-                          placeholder="Mode (e.g. TPP, FPP)"
-                        />
+                        <Input type="number" {...field} min={0} />
                       </FormControl>
+                      <FormDescription>
+                        Additional coins awarded for each kill during the match
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="entry_fee"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Entry Fee (coins)</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          {...field}
-                          min={0}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+              {/* Rewards */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium">Position Rewards</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="first_prize"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>1st Place Prize (coins)</FormLabel>
+                        <FormControl>
+                          <Input type="number" {...field} min={0} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-                <FormField
-                  control={form.control}
-                  name="slots"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Total Slots</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          {...field}
-                          min={2}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                  <FormField
+                    control={form.control}
+                    name="second_prize"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>2nd Place Prize (coins)</FormLabel>
+                        <FormControl>
+                          <Input type="number" {...field} min={0} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="third_prize"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>3rd Place Prize (coins)</FormLabel>
+                        <FormControl>
+                          <Input type="number" {...field} min={0} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <FormField
-                  control={form.control}
-                  name="first_prize"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>1st Prize (coins)</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          {...field}
-                          min={0}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="second_prize"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>2nd Prize (coins)</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          {...field}
-                          min={0}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="third_prize"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>3rd Prize (coins)</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          {...field}
-                          min={0}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <FormField
-                control={form.control}
-                name="coins_per_kill"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Coins per Kill</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        {...field}
-                        min={0}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <div className="border-t pt-4 mt-4">
-                <h3 className="font-medium mb-2">Room Information</h3>
+              {/* Room Information */}
+              <div className="space-y-4 border-t pt-4">
+                <h3 className="text-lg font-medium">Room Information</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
@@ -423,10 +387,17 @@ export default function MatchDetailsEditor({ matchId, open, onClose }: MatchDeta
                       <FormItem>
                         <FormLabel>Room ID</FormLabel>
                         <FormControl>
-                          <Input {...field} placeholder="Enter room ID" />
+                          <Input 
+                            {...field} 
+                            placeholder="Enter room ID" 
+                            disabled={!canEditRoomDetails}
+                          />
                         </FormControl>
                         <FormDescription>
-                          The unique identifier for the match room
+                          {canEditRoomDetails 
+                            ? "The unique identifier for the match room" 
+                            : "Room details can only be edited for upcoming or in-progress matches"
+                          }
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
@@ -440,10 +411,17 @@ export default function MatchDetailsEditor({ matchId, open, onClose }: MatchDeta
                       <FormItem>
                         <FormLabel>Room Password</FormLabel>
                         <FormControl>
-                          <Input {...field} placeholder="Enter room password" />
+                          <Input 
+                            {...field} 
+                            placeholder="Enter room password" 
+                            disabled={!canEditRoomDetails}
+                          />
                         </FormControl>
                         <FormDescription>
-                          Password required for players to join
+                          {canEditRoomDetails 
+                            ? "Password required for players to join" 
+                            : "Room details can only be edited for upcoming or in-progress matches"
+                          }
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
@@ -453,12 +431,7 @@ export default function MatchDetailsEditor({ matchId, open, onClose }: MatchDeta
               </div>
 
               <div className="flex justify-end gap-2 pt-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={onClose}
-                  disabled={loading}
-                >
+                <Button type="button" variant="outline" onClick={onClose} disabled={loading}>
                   Cancel
                 </Button>
                 <Button type="submit" disabled={loading}>

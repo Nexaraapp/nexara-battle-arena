@@ -8,6 +8,8 @@ import Index from "./pages/Index";
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
 import Matches from "./pages/Matches";
+import MatchesListPage from "./pages/MatchesListPage";
+import MatchDetailPage from "./pages/MatchDetailPage";
 import Profile from "./pages/Profile";
 import Wallet from "./pages/Wallet";
 import ReferralPage from "./pages/ReferralPage";
@@ -33,6 +35,8 @@ function App() {
             <Route path="/" element={<MainLayout />}>
               <Route index element={<Index />} />
               <Route path="matches" element={<Matches />} />
+              <Route path="matches-list" element={<MatchesListPage />} />
+              <Route path="match/:matchId" element={<MatchDetailPage />} />
               <Route 
                 path="profile" 
                 element={
