@@ -2,7 +2,7 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { Routes, Route } from "react-router-dom";
 import MainLayout from "./components/layout/MainLayout";
 import Index from "./pages/Index";
 import Login from "./pages/auth/Login";
@@ -28,83 +28,81 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/" element={<MainLayout />}>
-              <Route index element={<Index />} />
-              <Route path="matches" element={<Matches />} />
-              <Route path="matches-list" element={<MatchesListPage />} />
-              <Route path="match/:matchId" element={<MatchDetailPage />} />
-              <Route 
-                path="profile" 
-                element={
-                  <RouteGuard>
-                    <Profile />
-                  </RouteGuard>
-                } 
-              />
-              <Route 
-                path="wallet" 
-                element={
-                  <RouteGuard>
-                    <Wallet />
-                  </RouteGuard>
-                } 
-              />
-              <Route 
-                path="referral" 
-                element={
-                  <RouteGuard>
-                    <ReferralPage />
-                  </RouteGuard>
-                } 
-              />
-              <Route 
-                path="achievements" 
-                element={
-                  <RouteGuard>
-                    <AchievementsPage />
-                  </RouteGuard>
-                } 
-              />
-              <Route 
-                path="notifications" 
-                element={
-                  <RouteGuard>
-                    <Notifications />
-                  </RouteGuard>
-                } 
-              />
-              <Route 
-                path="admin" 
-                element={
-                  <RouteGuard requireAdmin>
-                    <AdminDashboard />
-                  </RouteGuard>
-                } 
-              />
-              <Route 
-                path="admin/matches" 
-                element={
-                  <RouteGuard requireAdmin>
-                    <AdminMatchManagement />
-                  </RouteGuard>
-                } 
-              />
-              <Route 
-                path="admin/withdrawals" 
-                element={
-                  <RouteGuard requireAdmin>
-                    <WithdrawalManager />
-                  </RouteGuard>
-                } 
-              />
-            </Route>
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/" element={<MainLayout />}>
+            <Route index element={<Index />} />
+            <Route path="matches" element={<Matches />} />
+            <Route path="matches-list" element={<MatchesListPage />} />
+            <Route path="match/:matchId" element={<MatchDetailPage />} />
+            <Route 
+              path="profile" 
+              element={
+                <RouteGuard>
+                  <Profile />
+                </RouteGuard>
+              } 
+            />
+            <Route 
+              path="wallet" 
+              element={
+                <RouteGuard>
+                  <Wallet />
+                </RouteGuard>
+              } 
+            />
+            <Route 
+              path="referral" 
+              element={
+                <RouteGuard>
+                  <ReferralPage />
+                </RouteGuard>
+              } 
+            />
+            <Route 
+              path="achievements" 
+              element={
+                <RouteGuard>
+                  <AchievementsPage />
+                </RouteGuard>
+              } 
+            />
+            <Route 
+              path="notifications" 
+              element={
+                <RouteGuard>
+                  <Notifications />
+                </RouteGuard>
+              } 
+            />
+            <Route 
+              path="admin" 
+              element={
+                <RouteGuard requireAdmin>
+                  <AdminDashboard />
+                </RouteGuard>
+              } 
+            />
+            <Route 
+              path="admin/matches" 
+              element={
+                <RouteGuard requireAdmin>
+                  <AdminMatchManagement />
+                </RouteGuard>
+              } 
+            />
+            <Route 
+              path="admin/withdrawals" 
+              element={
+                <RouteGuard requireAdmin>
+                  <WithdrawalManager />
+                </RouteGuard>
+              } 
+            />
+          </Route>
+          <Route path="*" element={<NotFound />} />
+        </Routes>
       </TooltipProvider>
     </QueryClientProvider>
   );
