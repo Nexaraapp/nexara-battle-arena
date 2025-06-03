@@ -71,27 +71,45 @@ export type Database = {
           created_at: string
           id: string
           ign: string | null
+          kills: number | null
           match_id: string
           paid: boolean
+          placement: number | null
+          result_status: string | null
+          screenshot_url: string | null
           slot_number: number
+          submitted_at: string | null
+          team_name: string | null
           user_id: string
         }
         Insert: {
           created_at?: string
           id?: string
           ign?: string | null
+          kills?: number | null
           match_id: string
           paid?: boolean
+          placement?: number | null
+          result_status?: string | null
+          screenshot_url?: string | null
           slot_number: number
+          submitted_at?: string | null
+          team_name?: string | null
           user_id: string
         }
         Update: {
           created_at?: string
           id?: string
           ign?: string | null
+          kills?: number | null
           match_id?: string
           paid?: boolean
+          placement?: number | null
+          result_status?: string | null
+          screenshot_url?: string | null
           slot_number?: number
+          submitted_at?: string | null
+          team_name?: string | null
           user_id?: string
         }
         Relationships: [
@@ -100,6 +118,69 @@ export type Database = {
             columns: ["match_id"]
             isOneToOne: false
             referencedRelation: "matches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      match_results: {
+        Row: {
+          admin_notes: string | null
+          created_at: string
+          id: string
+          kills: number | null
+          match_id: string | null
+          placement: number | null
+          prize_amount: number | null
+          screenshot_url: string | null
+          status: string | null
+          team_id: string | null
+          user_id: string
+          verified_at: string | null
+          verified_by: string | null
+        }
+        Insert: {
+          admin_notes?: string | null
+          created_at?: string
+          id?: string
+          kills?: number | null
+          match_id?: string | null
+          placement?: number | null
+          prize_amount?: number | null
+          screenshot_url?: string | null
+          status?: string | null
+          team_id?: string | null
+          user_id: string
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Update: {
+          admin_notes?: string | null
+          created_at?: string
+          id?: string
+          kills?: number | null
+          match_id?: string | null
+          placement?: number | null
+          prize_amount?: number | null
+          screenshot_url?: string | null
+          status?: string | null
+          team_id?: string | null
+          user_id?: string
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "match_results_match_id_fkey"
+            columns: ["match_id"]
+            isOneToOne: false
+            referencedRelation: "matches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "match_results_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
             referencedColumns: ["id"]
           },
         ]
@@ -113,6 +194,8 @@ export type Database = {
           entry_fee: number
           first_prize: number | null
           id: string
+          kills_reward: number | null
+          max_teams: number | null
           mode: string | null
           prize: number
           room_id: string | null
@@ -135,6 +218,8 @@ export type Database = {
           entry_fee: number
           first_prize?: number | null
           id?: string
+          kills_reward?: number | null
+          max_teams?: number | null
           mode?: string | null
           prize: number
           room_id?: string | null
@@ -157,6 +242,8 @@ export type Database = {
           entry_fee?: number
           first_prize?: number | null
           id?: string
+          kills_reward?: number | null
+          max_teams?: number | null
           mode?: string | null
           prize?: number
           room_id?: string | null
@@ -319,6 +406,67 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      team_members: {
+        Row: {
+          id: string
+          joined_at: string
+          team_id: string | null
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          joined_at?: string
+          team_id?: string | null
+          user_id: string
+        }
+        Update: {
+          id?: string
+          joined_at?: string
+          team_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_members_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      teams: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          match_id: string | null
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          match_id?: string | null
+          name: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          match_id?: string | null
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teams_match_id_fkey"
+            columns: ["match_id"]
+            isOneToOne: false
+            referencedRelation: "matches"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       top_up_packs: {
         Row: {
@@ -486,6 +634,48 @@ export type Database = {
         }
         Relationships: []
       }
+      user_statistics: {
+        Row: {
+          average_kills: number | null
+          best_placement: number | null
+          created_at: string
+          id: string
+          total_earnings: number | null
+          total_kills: number | null
+          total_matches: number | null
+          total_wins: number | null
+          updated_at: string
+          user_id: string
+          win_rate: number | null
+        }
+        Insert: {
+          average_kills?: number | null
+          best_placement?: number | null
+          created_at?: string
+          id?: string
+          total_earnings?: number | null
+          total_kills?: number | null
+          total_matches?: number | null
+          total_wins?: number | null
+          updated_at?: string
+          user_id: string
+          win_rate?: number | null
+        }
+        Update: {
+          average_kills?: number | null
+          best_placement?: number | null
+          created_at?: string
+          id?: string
+          total_earnings?: number | null
+          total_kills?: number | null
+          total_matches?: number | null
+          total_wins?: number | null
+          updated_at?: string
+          user_id?: string
+          win_rate?: number | null
+        }
+        Relationships: []
+      }
       withdrawal_settings: {
         Row: {
           end_time: string
@@ -539,6 +729,7 @@ export type Database = {
           admin_note: string | null
           admin_tags: string[] | null
           amount: number | null
+          auto_tags: string[] | null
           created_at: string | null
           id: number
           is_suspicious: boolean | null
@@ -549,6 +740,7 @@ export type Database = {
           public_notes: string | null
           qr_code_url: string | null
           qr_url: string | null
+          risk_score: number | null
           status: string | null
           upi_id: string | null
           user_id: string | null
@@ -557,6 +749,7 @@ export type Database = {
           admin_note?: string | null
           admin_tags?: string[] | null
           amount?: number | null
+          auto_tags?: string[] | null
           created_at?: string | null
           id?: number
           is_suspicious?: boolean | null
@@ -567,6 +760,7 @@ export type Database = {
           public_notes?: string | null
           qr_code_url?: string | null
           qr_url?: string | null
+          risk_score?: number | null
           status?: string | null
           upi_id?: string | null
           user_id?: string | null
@@ -575,6 +769,7 @@ export type Database = {
           admin_note?: string | null
           admin_tags?: string[] | null
           amount?: number | null
+          auto_tags?: string[] | null
           created_at?: string | null
           id?: number
           is_suspicious?: boolean | null
@@ -585,6 +780,7 @@ export type Database = {
           public_notes?: string | null
           qr_code_url?: string | null
           qr_url?: string | null
+          risk_score?: number | null
           status?: string | null
           upi_id?: string | null
           user_id?: string | null

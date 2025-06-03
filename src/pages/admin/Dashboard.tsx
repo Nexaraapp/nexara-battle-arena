@@ -1,5 +1,9 @@
+
 import React from 'react';
 import { SampleDataManager } from '@/components/admin/SampleDataManager';
+import { AdminDashboardStats } from '@/components/admin/AdminDashboardStats';
+import { ResultVerification } from '@/components/admin/ResultVerification';
+import { SmartWithdrawalTagging } from '@/components/admin/SmartWithdrawalTagging';
 
 const AdminDashboard = () => {
   return (
@@ -11,16 +15,19 @@ const AdminDashboard = () => {
         </p>
       </div>
       
+      {/* Dashboard Statistics */}
+      <AdminDashboardStats />
+      
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Sample Data Manager */}
         <SampleDataManager />
         
-        <div className="space-y-4">
-          <h2 className="text-xl font-semibold">Quick Actions</h2>
-          <div className="grid grid-cols-1 gap-4">
-            {/* Add more admin widgets here as needed */}
-          </div>
-        </div>
+        {/* Smart Withdrawal Tagging */}
+        <SmartWithdrawalTagging />
       </div>
+
+      {/* Result Verification */}
+      <ResultVerification />
     </div>
   );
 };
