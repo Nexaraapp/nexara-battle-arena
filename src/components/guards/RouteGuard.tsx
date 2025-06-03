@@ -1,81 +1,83 @@
 
-import { ReactNode, useEffect, useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 import { Loader2 } from 'lucide-react';
-import { toast } from 'sonner';
 
 interface RouteGuardProps {
-  children: ReactNode;
+  children: React.ReactNode;
   requireAuth?: boolean;
-  requireAdmin?: boolean;
-  requireSuperadmin?: boolean;
+  requireRole?: 'admin' | 'superadmin';
 }
 
-/**
- * A component that guards routes based on authentication and role requirements
- */
 export const RouteGuard: React.FC<RouteGuardProps> = ({
   children,
-  requireAuth = true,
-  requireAdmin = false,
-  requireSuperadmin = false
+  requireAuth = false,
+  requireRole
 }) => {
-  const { isAuthenticated, isAdmin, isSuperadmin, isLoading } = useAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
-  const [isChecking, setIsChecking] = useState(true);
-  const [hasPermission, setHasPermission] = useState(false);
+  const { isAuthenticated, isLoading, user } = useAuth();
+  const [roleLoading, setRoleLoading] = useState(false);
+  const [hasRequiredRole, setHasRequiredRole] = useState(false);
 
   useEffect(() => {
-    const checkAuth = async () => {
+    const checkRole = async () => {
+      if (!requireRole || !user) {
+        setHasRequiredRole(true);
+        return;
+      }
+
+      setRoleLoading(true);
       try {
-        if (isLoading) return;
+        const { data: roles } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', user.id);
 
-        // Check authentication first
-        if (requireAuth && !isAuthenticated) {
-          toast.error("Please login to access this page");
-          navigate('/login', { state: { from: location.pathname } });
+        if (!roles || roles.length === 0) {
+          setHasRequiredRole(false);
           return;
         }
 
-        // Then check admin permissions
-        if (requireAdmin && !(await isAdmin())) {
-          toast.error("Access denied: Admin permissions required");
-          navigate('/');
-          return;
-        }
-
-        // Finally check superadmin permissions
-        if (requireSuperadmin && !(await isSuperadmin())) {
-          toast.error("Access denied: Superadmin permissions required");
-          navigate('/');
-          return;
-        }
+        const userRoles = roles.map(r => r.role);
         
-        // All checks passed
-        setHasPermission(true);
+        if (requireRole === 'superadmin') {
+          setHasRequiredRole(userRoles.includes('superadmin'));
+        } else if (requireRole === 'admin') {
+          setHasRequiredRole(userRoles.includes('admin') || userRoles.includes('superadmin'));
+        } else {
+          setHasRequiredRole(true);
+        }
       } catch (error) {
-        console.error("Error in RouteGuard:", error);
-        toast.error("An error occurred while checking permissions");
-        navigate('/login');
+        console.error('Error checking user role:', error);
+        setHasRequiredRole(false);
       } finally {
-        setIsChecking(false);
+        setRoleLoading(false);
       }
     };
 
-    checkAuth();
-  }, [isLoading, isAuthenticated, requireAuth, requireAdmin, requireSuperadmin, navigate, location, isAdmin, isSuperadmin]);
+    if (isAuthenticated && requireRole) {
+      checkRole();
+    } else if (!requireRole) {
+      setHasRequiredRole(true);
+    }
+  }, [user, requireRole, isAuthenticated]);
 
-  // Show loading state while checking authentication
-  if (isLoading || isChecking) {
+  if (isLoading || roleLoading) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-nexara-accent" />
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
       </div>
     );
   }
 
-  // All checks passed, render children
-  return hasPermission ? <>{children}</> : null;
+  if (requireAuth && !isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (requireRole && (!isAuthenticated || !hasRequiredRole)) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return <>{children}</>;
 };

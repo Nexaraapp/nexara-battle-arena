@@ -1,181 +1,133 @@
 
-import React, { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { Trophy, Mail, Lock } from "lucide-react";
-import { Input } from "@/components/ui/input";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useAuth } from "@/hooks/useAuth";
+import { useNavigate, Link } from "react-router-dom";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
-import { SuperadminGestureDetector } from "@/components/admin/SuperadminGestureDetector";
+import { Eye, EyeOff, Shield, User } from "lucide-react";
 
 const Login = () => {
-  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const { signIn } = useAuth();
+  const navigate = useNavigate();
 
-  useEffect(() => {
-    // Check if already logged in
-    const checkSession = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session) {
-          // Already logged in, redirect to appropriate page
-          navigate("/");
-        }
-      } catch (error) {
-        console.error("Error checking session:", error);
-      }
-    };
-    
-    checkSession();
-  }, [navigate]);
-
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
-    
+    setLoading(true);
+
     try {
-      console.log("Attempting login with:", { email });
-      
-      // Use Supabase authentication
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-      
-      if (error) {
-        console.error("Login error:", error);
-        if (error.message.includes("Email not confirmed")) {
-          toast.error("Please verify your email address first.");
-        } else if (error.message.includes("Invalid login")) {
-          toast.error("Invalid email or password. Please try again.");
-        } else if (error.message.includes("Invalid API key")) {
-          toast.error("Authentication service error. Please try again later.");
-        } else {
-          toast.error(error.message);
-        }
-        return;
-      }
-      
-      console.log("Login successful:", data);
-      toast.success("Login successful!");
-      
-      // Check if user has special role
-      const checkUserRole = async () => {
-        try {
-          const { data: roleData, error: roleError } = await supabase
-            .from("user_roles")
-            .select("role")
-            .eq("user_id", data.user.id)
-            .single();
-            
-          if (roleData?.role === "superadmin" || roleData?.role === "admin") {
-            // If admin or superadmin, redirect to admin dashboard
-            navigate("/admin", { replace: true });
-            return;
-          }
-          
-          // Regular user, redirect to home
-          navigate("/", { replace: true });
-        } catch (roleCheckError) {
-          console.error("Role check error:", roleCheckError);
-          // Default to regular user flow if role check fails
-          navigate("/", { replace: true });
-        }
-      };
-      
-      await checkUserRole();
+      await signIn(email, password);
+      toast.success("Logged in successfully!");
+      navigate("/");
     } catch (error: any) {
-      console.error("Login error:", error);
-      toast.error(error.message || "Login failed. Please check your credentials.");
+      toast.error(error.message || "Failed to log in");
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex flex-col justify-center items-center p-4 bg-nexara-bg">
-      <div className="max-w-md w-full space-y-8">
-        <div className="text-center">
-          <div className="flex justify-center">
-            <Trophy id="app-logo" className="h-12 w-12 text-nexara-accent animate-pulse-neon" />
-          </div>
-          <h2 className="mt-6 text-3xl font-extrabold text-white neon-text">
-            Welcome Back!
-          </h2>
-          <p className="mt-2 text-sm text-gray-400">
-            Enter your credentials to access your account
-          </p>
-        </div>
-        
-        <div className="mt-8 space-y-6 neon-border p-6 rounded-lg bg-card">
-          <form className="space-y-6" onSubmit={handleLogin}>
-            <div>
-              <Label htmlFor="email">Email</Label>
-              <div className="relative mt-1">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-900 to-purple-900 p-4">
+      <div className="w-full max-w-md space-y-6">
+        <Card>
+          <CardHeader className="text-center">
+            <div className="mx-auto w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-4">
+              <User className="w-6 h-6 text-primary" />
+            </div>
+            <CardTitle className="text-2xl">Welcome Back</CardTitle>
+            <p className="text-muted-foreground">
+              Sign in to your Nexara BattleField account
+            </p>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
                 <Input
-                  id="email"
-                  name="email"
                   type="email"
-                  autoComplete="email"
-                  required
+                  placeholder="Email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="pl-10 bg-muted border-nexara-accent/30"
-                />
-              </div>
-            </div>
-            
-            <div>
-              <div className="flex justify-between items-center">
-                <Label htmlFor="password">Password</Label>
-                <Link 
-                  to="/forgot-password" 
-                  className="text-sm text-nexara-accent hover:text-nexara-accent2"
-                >
-                  Forgot password?
-                </Link>
-              </div>
-              <div className="relative mt-1">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
-                <Input
-                  id="password"
-                  name="password"
-                  type="password"
-                  autoComplete="current-password"
                   required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="pl-10 bg-muted border-nexara-accent/30"
                 />
               </div>
-            </div>
+              <div className="space-y-2">
+                <div className="relative">
+                  <Input
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? "Signing in..." : "Sign In"}
+              </Button>
+            </form>
 
+            <div className="mt-6 text-center space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Don't have an account?{" "}
+                <Link to="/register" className="text-primary hover:underline">
+                  Sign up
+                </Link>
+              </p>
+              
+              {/* Admin Login Button */}
+              <div className="pt-4 border-t">
+                <Button
+                  variant="outline"
+                  onClick={() => navigate('/admin-login')}
+                  className="w-full flex items-center gap-2"
+                >
+                  <Shield className="w-4 h-4" />
+                  Login as Admin
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Tutorial and Updates Info */}
+        <Card className="bg-gradient-to-r from-green-50 to-blue-50 border-green-200">
+          <CardContent className="p-4 text-center">
+            <h3 className="font-semibold text-green-800 mb-2">🎮 Welcome to Nexara BattleField!</h3>
+            <p className="text-sm text-green-700 mb-3">
+              📺 Need Help? Watch our app tutorials and updates here:
+            </p>
             <Button
-              type="submit"
-              className="game-button w-full"
-              disabled={isLoading}
+              variant="outline"
+              size="sm"
+              onClick={() => window.open('https://youtube.com/@nexara_battlefield?si=5fyTXGINy693Tg4g', '_blank')}
+              className="text-green-700 border-green-300 hover:bg-green-100"
             >
-              {isLoading ? "Signing in..." : "Sign in"}
+              📢 Join Updates Channel
             </Button>
-          </form>
-        </div>
-        
-        <div className="text-center mt-4">
-          <p className="text-sm text-gray-400">
-            Don't have an account yet?{" "}
-            <Link to="/register" className="text-nexara-accent hover:text-nexara-accent2 font-medium">
-              Register now
-            </Link>
-          </p>
-        </div>
+            <p className="text-xs text-green-600 mt-2">
+              All livestreams, feature updates, and events posted here!
+            </p>
+          </CardContent>
+        </Card>
       </div>
-      
-      {/* Add the SuperadminGestureDetector with our logo element ID */}
-      <SuperadminGestureDetector logoElementId="app-logo" />
     </div>
   );
 };

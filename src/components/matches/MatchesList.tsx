@@ -59,7 +59,8 @@ export const MatchesList = () => {
       const { data, error } = await supabase
         .from('matches')
         .select('*')
-        .in('status', ['upcoming', 'in_progress'])
+        .eq('status', 'upcoming')
+        .gte('start_time', new Date().toISOString())
         .order('start_time', { ascending: true });
 
       if (error) throw error;
@@ -98,9 +99,9 @@ export const MatchesList = () => {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Live Matches</h1>
-        <Badge variant="outline" className="text-green-600">
-          {matches.length} Active Matches
+        <h1 className="text-3xl font-bold">Upcoming Matches</h1>
+        <Badge variant="outline" className="text-blue-600">
+          {matches.length} Available
         </Badge>
       </div>
 
@@ -108,7 +109,7 @@ export const MatchesList = () => {
         <Card>
           <CardContent className="text-center py-12">
             <Trophy className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-600">No active matches</h3>
+            <h3 className="text-lg font-medium text-gray-600">No upcoming matches</h3>
             <p className="text-gray-500">Check back later for new matches!</p>
           </CardContent>
         </Card>
@@ -120,7 +121,7 @@ export const MatchesList = () => {
                 <div className="flex justify-between items-start">
                   <CardTitle className="text-lg font-bold">{match.title}</CardTitle>
                   <Badge className={getStatusColor(match.status)}>
-                    {match.status.replace('_', ' ')}
+                    Upcoming
                   </Badge>
                 </div>
                 <div className="flex gap-2">
@@ -159,9 +160,9 @@ export const MatchesList = () => {
                 <Button 
                   onClick={() => navigate(`/match/${match.id}`)}
                   className="w-full"
-                  variant={match.status === 'in_progress' ? 'default' : 'outline'}
+                  disabled={match.slots_filled >= match.slots}
                 >
-                  {match.status === 'in_progress' ? 'Join Now' : 'View Details'}
+                  {match.slots_filled >= match.slots ? 'Match Full' : 'Join Match'}
                 </Button>
               </CardContent>
             </Card>
