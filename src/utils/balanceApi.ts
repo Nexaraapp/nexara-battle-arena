@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 
 export interface Balance {
@@ -12,23 +13,28 @@ export const getUserBalance = async (): Promise<Balance> => {
       throw new Error("Not authenticated");
     }
 
-    const response = await fetch(
-      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/getUserBalance`,
-      {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      }
-    );
+    const { data, error } = await supabase
+      .from('transactions')
+      .select('amount, is_real_coins')
+      .eq('user_id', session.user.id)
+      .eq('status', 'completed');
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || "Failed to fetch balance");
+    if (error) {
+      console.error("Error fetching balance:", error);
+      throw new Error(error.message);
     }
 
-    return await response.json();
+    const balances = data.reduce((acc, tx) => ({
+      total: acc.total + (tx.amount || 0),
+      realCoins: acc.realCoins + (tx.is_real_coins ? (tx.amount || 0) : 0)
+    }), { total: 0, realCoins: 0 });
+
+    return {
+      balance: balances.total,
+      realCoinsBalance: balances.realCoins
+    };
   } catch (error: any) {
     console.error("Error fetching balance:", error);
     throw new Error(error.message || "Failed to fetch balance");
   }
-}; 
+};

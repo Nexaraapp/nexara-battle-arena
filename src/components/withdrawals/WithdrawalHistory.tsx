@@ -29,6 +29,27 @@ export const WithdrawalHistory = () => {
   useEffect(() => {
     if (user?.id) {
       fetchWithdrawals();
+      
+      // Set up real-time subscription
+      const channel = supabase
+        .channel('user-withdrawals')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'withdrawals',
+            filter: `user_id=eq.${user.id}`
+          },
+          () => {
+            fetchWithdrawals();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
     }
   }, [user]);
 

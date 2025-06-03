@@ -76,6 +76,7 @@ export const WithdrawalRequestForm = () => {
       setBalance(userBalance);
     } catch (error) {
       console.error('Error fetching balance:', error);
+      toast.error('Failed to fetch balance');
     }
   };
 
@@ -102,11 +103,25 @@ export const WithdrawalRequestForm = () => {
     setIsSubmitting(true);
 
     try {
+      // Check for existing pending withdrawal
+      const { data: existingWithdrawals, error: checkError } = await supabase
+        .from('withdrawals')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('status', 'pending');
+
+      if (checkError) throw checkError;
+
+      if (existingWithdrawals && existingWithdrawals.length > 0) {
+        toast.error('You already have a pending withdrawal request');
+        return;
+      }
+
       const { error } = await supabase
         .from('withdrawals')
         .insert({
           user_id: user.id,
-          amount: selectedTier.amount,
+          amount: selectedTier.coins,
           upi_id: upiId.trim(),
           qr_url: qrUrl.trim() || null,
           preferred_time_slot: preferredTimeSlot || null,
