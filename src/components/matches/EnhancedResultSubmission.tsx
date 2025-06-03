@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
-import { Loader2, Upload } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 
 interface EnhancedResultSubmissionProps {
   matchId: string;
@@ -25,33 +25,14 @@ export const EnhancedResultSubmission = ({
   const [kills, setKills] = useState<number>(0);
   const [placement, setPlacement] = useState<number>(1);
   const [teamName, setTeamName] = useState<string>('');
-  const [screenshot, setScreenshot] = useState<File | null>(null);
   const [notes, setNotes] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setScreenshot(e.target.files[0]);
-    }
-  };
 
   const handleSubmit = async () => {
     if (!user?.id) return;
 
     setIsSubmitting(true);
     try {
-      let screenshotUrl = null;
-
-      // Upload screenshot if provided
-      if (screenshot) {
-        const fileExt = screenshot.name.split('.').pop();
-        const fileName = `${matchId}-${user.id}-${Date.now()}.${fileExt}`;
-        
-        // Note: This would require setting up storage bucket in Supabase
-        // For now, we'll store the filename as placeholder
-        screenshotUrl = fileName;
-      }
-
       // Submit result to match_results table
       const { error: resultError } = await supabase
         .from('match_results')
@@ -60,7 +41,6 @@ export const EnhancedResultSubmission = ({
           user_id: user.id,
           kills,
           placement,
-          screenshot_url: screenshotUrl,
           admin_notes: notes,
           status: 'pending'
         });
@@ -75,7 +55,6 @@ export const EnhancedResultSubmission = ({
           placement,
           team_name: teamName || null,
           result_status: 'pending',
-          screenshot_url: screenshotUrl,
           submitted_at: new Date().toISOString()
         })
         .eq('match_id', matchId)
@@ -142,28 +121,6 @@ export const EnhancedResultSubmission = ({
             />
           </div>
         )}
-
-        <div>
-          <Label htmlFor="screenshot">Screenshot (Optional)</Label>
-          <div className="flex items-center space-x-2">
-            <Input
-              id="screenshot"
-              type="file"
-              accept="image/*"
-              onChange={handleFileChange}
-              className="hidden"
-            />
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => document.getElementById('screenshot')?.click()}
-              className="flex items-center gap-2"
-            >
-              <Upload className="w-4 h-4" />
-              {screenshot ? screenshot.name : 'Upload Screenshot'}
-            </Button>
-          </div>
-        </div>
 
         <div>
           <Label htmlFor="notes">Additional Notes (Optional)</Label>

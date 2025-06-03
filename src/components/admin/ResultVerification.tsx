@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
-import { Check, X, Eye } from 'lucide-react';
+import { Check, X } from 'lucide-react';
 
 interface PendingResult {
   id: string;
@@ -15,7 +15,6 @@ interface PendingResult {
   user_id: string;
   kills: number;
   placement: number;
-  screenshot_url?: string;
   admin_notes?: string;
   created_at: string;
   matches?: {
@@ -134,7 +133,7 @@ export const ResultVerification = () => {
                   <Badge variant="outline">Pending</Badge>
                 </div>
 
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   <div>
                     <p className="text-sm font-medium">Kills</p>
                     <p className="text-lg">{result.kills}</p>
@@ -147,15 +146,6 @@ export const ResultVerification = () => {
                     <p className="text-sm font-medium">User ID</p>
                     <p className="text-sm text-muted-foreground">{result.user_id}</p>
                   </div>
-                  {result.screenshot_url && (
-                    <div>
-                      <p className="text-sm font-medium">Screenshot</p>
-                      <Button variant="outline" size="sm" className="flex items-center gap-1">
-                        <Eye className="w-3 h-3" />
-                        View
-                      </Button>
-                    </div>
-                  )}
                 </div>
 
                 <div>
