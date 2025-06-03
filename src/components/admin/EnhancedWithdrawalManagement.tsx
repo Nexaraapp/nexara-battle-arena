@@ -4,64 +4,76 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
-import { CheckCircle, XCircle, Clock, User, Calendar, Flag, Eye, EyeOff } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
+import { Check, X, RefreshCw, AlertTriangle, Clock } from 'lucide-react';
 
-interface Withdrawal {
+interface WithdrawalRequest {
   id: number;
   user_id: string;
   amount: number;
   status: string;
   created_at: string;
-  admin_note?: string;
-  processed_by?: string;
-  processed_at?: string;
   upi_id?: string;
+  qr_url?: string;
   preferred_time_slot?: string;
-  admin_tags?: string[];
-  is_suspicious?: boolean;
   public_notes?: string;
   private_notes?: string;
+  auto_tags: string[];
+  admin_tags: string[];
 }
 
 export const EnhancedWithdrawalManagement = () => {
-  const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
+  const { user } = useAuth();
+  const [requests, setRequests] = useState<WithdrawalRequest[]>([]);
   const [loading, setLoading] = useState(true);
-  const [processing, setProcessing] = useState<string | null>(null);
-  const [publicNotes, setPublicNotes] = useState<Record<string, string>>({});
-  const [privateNotes, setPrivateNotes] = useState<Record<string, string>>({});
-  const [filterStatus, setFilterStatus] = useState<string>('all');
-  const [showPrivateNotes, setShowPrivateNotes] = useState<Record<string, boolean>>({});
+  const [processingIds, setProcessingIds] = useState<Set<number>>(new Set());
+  const [adminNotes, setAdminNotes] = useState<Record<number, string>>({});
+  const [privateNotes, setPrivateNotes] = useState<Record<number, string>>({});
 
   useEffect(() => {
-    fetchWithdrawals();
+    fetchWithdrawalRequests();
     
-    // Set up real-time subscription
+    // Set up real-time subscription for new withdrawal requests
     const channel = supabase
-      .channel('withdrawals-admin-changes')
+      .channel('withdrawal-requests')
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: 'INSERT',
+          schema: 'public',
+          table: 'withdrawals'
+        },
+        (payload) => {
+          console.log('New withdrawal request:', payload);
+          toast.success('New withdrawal request received!');
+          fetchWithdrawalRequests();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
           schema: 'public',
           table: 'withdrawals'
         },
         () => {
-          fetchWithdrawals();
+          fetchWithdrawalRequests();
         }
       )
       .subscribe();
 
+    // Refresh every 10 seconds as backup
+    const interval = setInterval(fetchWithdrawalRequests, 10000);
+
     return () => {
       supabase.removeChannel(channel);
+      clearInterval(interval);
     };
   }, []);
 
-  const fetchWithdrawals = async () => {
+  const fetchWithdrawalRequests = async () => {
     try {
       const { data, error } = await supabase
         .from('withdrawals')
@@ -69,289 +81,261 @@ export const EnhancedWithdrawalManagement = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setWithdrawals(data || []);
+      console.log('Fetched withdrawal requests:', data);
+      setRequests(data || []);
     } catch (error) {
-      console.error('Error fetching withdrawals:', error);
-      toast.error('Failed to load withdrawals');
+      console.error('Error fetching withdrawal requests:', error);
+      toast.error('Failed to load withdrawal requests');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleApprove = async (withdrawalId: number) => {
-    setProcessing(`approve-${withdrawalId}`);
+  const handleApproveWithdrawal = async (requestId: number) => {
+    if (!user?.id) return;
+
+    setProcessingIds(prev => new Set(prev).add(requestId));
+    
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
+      const publicNote = adminNotes[requestId] || '';
+      const privateNote = privateNotes[requestId] || '';
 
       const { data, error } = await supabase.rpc('approve_withdrawal_v2', {
-        withdrawal_id: withdrawalId,
+        withdrawal_id: requestId,
         admin_id: user.id,
-        public_note: publicNotes[withdrawalId] || null,
-        private_note: privateNotes[withdrawalId] || null
+        public_note: publicNote || null,
+        private_note: privateNote || null
       });
 
       if (error) throw error;
 
-      if (data) {
-        toast.success('Withdrawal approved successfully');
-        await fetchWithdrawals();
-      } else {
-        toast.error('Failed to approve withdrawal. Check user balance.');
-      }
+      toast.success('Withdrawal approved successfully');
+      fetchWithdrawalRequests();
     } catch (error) {
       console.error('Error approving withdrawal:', error);
       toast.error('Failed to approve withdrawal');
     } finally {
-      setProcessing(null);
+      setProcessingIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(requestId);
+        return newSet;
+      });
     }
   };
 
-  const handleReject = async (withdrawalId: number) => {
-    setProcessing(`reject-${withdrawalId}`);
+  const handleRejectWithdrawal = async (requestId: number) => {
+    if (!user?.id) return;
+
+    setProcessingIds(prev => new Set(prev).add(requestId));
+    
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
+      const publicNote = adminNotes[requestId] || 'Request rejected';
+      const privateNote = privateNotes[requestId] || '';
 
       const { data, error } = await supabase.rpc('reject_withdrawal_v2', {
-        withdrawal_id: withdrawalId,
+        withdrawal_id: requestId,
         admin_id: user.id,
-        public_note: publicNotes[withdrawalId] || 'Request rejected by admin',
-        private_note: privateNotes[withdrawalId] || null
+        public_note: publicNote,
+        private_note: privateNote || null
       });
 
       if (error) throw error;
 
-      if (data) {
-        toast.success('Withdrawal rejected');
-        await fetchWithdrawals();
-      }
+      toast.success('Withdrawal rejected');
+      fetchWithdrawalRequests();
     } catch (error) {
       console.error('Error rejecting withdrawal:', error);
       toast.error('Failed to reject withdrawal');
     } finally {
-      setProcessing(null);
+      setProcessingIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(requestId);
+        return newSet;
+      });
     }
   };
 
-  const updateTags = async (withdrawalId: number, newTags: string[]) => {
-    try {
-      const { error } = await supabase
-        .from('withdrawals')
-        .update({ admin_tags: newTags })
-        .eq('id', withdrawalId);
-
-      if (error) throw error;
-      
-      await fetchWithdrawals();
-      toast.success('Tags updated');
-    } catch (error) {
-      console.error('Error updating tags:', error);
-      toast.error('Failed to update tags');
-    }
-  };
-
-  const getStatusBadge = (status: string) => {
+  const getStatusColor = (status: string) => {
     switch (status) {
       case 'pending':
-        return <Badge variant="outline" className="text-yellow-600"><Clock className="w-3 h-3 mr-1" />Pending</Badge>;
+        return 'bg-yellow-100 text-yellow-800';
       case 'approved':
-        return <Badge variant="outline" className="text-green-600"><CheckCircle className="w-3 h-3 mr-1" />Approved</Badge>;
+        return 'bg-green-100 text-green-800';
       case 'rejected':
-        return <Badge variant="outline" className="text-red-600"><XCircle className="w-3 h-3 mr-1" />Rejected</Badge>;
+        return 'bg-red-100 text-red-800';
       default:
-        return <Badge variant="outline">{status}</Badge>;
+        return 'bg-gray-100 text-gray-800';
     }
   };
 
-  const getSmartTags = (withdrawal: Withdrawal): string[] => {
-    const tags = ['New'];
-    
-    // Add more intelligent tagging logic here
-    if (withdrawal.amount > 1000) tags.push('High Amount');
-    if (withdrawal.is_suspicious) tags.push('Suspicious');
-    if (withdrawal.preferred_time_slot) tags.push('Time Specific');
-    
-    return tags;
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleString();
   };
 
-  const filteredWithdrawals = withdrawals.filter(withdrawal => 
-    filterStatus === 'all' || withdrawal.status === filterStatus
-  );
-
   if (loading) {
-    return <div className="flex justify-center p-8">Loading withdrawals...</div>;
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <div className="text-center">Loading withdrawal requests...</div>
+        </CardContent>
+      </Card>
+    );
   }
+
+  const pendingRequests = requests.filter(r => r.status === 'pending');
+  const processedRequests = requests.filter(r => r.status !== 'pending');
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold">Enhanced Withdrawal Management</h2>
-        <div className="flex gap-2">
-          <Select value={filterStatus} onValueChange={setFilterStatus}>
-            <SelectTrigger className="w-32">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="pending">Pending</SelectItem>
-              <SelectItem value="approved">Approved</SelectItem>
-              <SelectItem value="rejected">Rejected</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button onClick={fetchWithdrawals} variant="outline">
-            Refresh
-          </Button>
-        </div>
-      </div>
-
-      <div className="grid gap-4">
-        {filteredWithdrawals.map((withdrawal) => (
-          <Card key={withdrawal.id} className={withdrawal.is_suspicious ? 'border-red-200 bg-red-50' : ''}>
-            <CardHeader>
-              <div className="flex justify-between items-start">
-                <CardTitle className="text-lg">
-                  Withdrawal #{withdrawal.id}
-                </CardTitle>
-                <div className="flex gap-2 items-center">
-                  {getStatusBadge(withdrawal.status)}
-                  {withdrawal.is_suspicious && (
-                    <Badge variant="destructive">
-                      <Flag className="w-3 h-3 mr-1" />
-                      Suspicious
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="flex items-center gap-2">
+            <AlertTriangle className="w-5 h-5" />
+            Withdrawal Management
+          </CardTitle>
+          <div className="flex gap-2">
+            <Badge variant="outline" className="text-yellow-600">
+              {pendingRequests.length} Pending
+            </Badge>
+            <Button 
+              onClick={fetchWithdrawalRequests}
+              variant="outline" 
+              size="sm"
+            >
+              <RefreshCw className="w-4 h-4 mr-1" />
+              Refresh
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {pendingRequests.length === 0 ? (
+            <div className="text-center text-muted-foreground py-8">
+              No pending withdrawal requests
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {pendingRequests.map((request) => (
+                <div key={request.id} className="border rounded-lg p-4 space-y-4">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h4 className="font-medium">Request #{request.id}</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Amount: ₹{request.amount} | User: {request.user_id.substring(0, 8)}...
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        <Clock className="w-3 h-3 inline mr-1" />
+                        {formatDate(request.created_at)}
+                      </p>
+                    </div>
+                    <Badge className={getStatusColor(request.status)}>
+                      {request.status}
                     </Badge>
-                  )}
-                </div>
-              </div>
-              <div className="flex gap-1 flex-wrap">
-                {(withdrawal.admin_tags || getSmartTags(withdrawal)).map((tag) => (
-                  <Badge key={tag} variant="secondary" className="text-xs">
-                    {tag}
-                  </Badge>
-                ))}
-              </div>
-            </CardHeader>
-            
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-                <div className="flex items-center space-x-2">
-                  <User className="w-4 h-4 text-muted-foreground" />
-                  <span>User: {withdrawal.user_id.slice(0, 8)}...</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Calendar className="w-4 h-4 text-muted-foreground" />
-                  <span>{formatDistanceToNow(new Date(withdrawal.created_at), { addSuffix: true })}</span>
-                </div>
-                {withdrawal.upi_id && (
-                  <div className="text-sm">
-                    <strong>UPI:</strong> {withdrawal.upi_id}
                   </div>
-                )}
-              </div>
-              
-              <div className="text-2xl font-bold text-center py-2 bg-muted rounded">
-                {withdrawal.amount} Coins
-              </div>
 
-              {withdrawal.preferred_time_slot && (
-                <div className="bg-blue-50 p-2 rounded text-sm">
-                  <strong>Preferred Time:</strong> {withdrawal.preferred_time_slot}
-                </div>
-              )}
-
-              {withdrawal.public_notes && (
-                <div className="bg-green-50 p-3 rounded">
-                  <p className="text-sm"><strong>Public Note:</strong> {withdrawal.public_notes}</p>
-                </div>
-              )}
-
-              {withdrawal.private_notes && (
-                <div className="bg-yellow-50 p-3 rounded">
-                  <div className="flex justify-between items-center">
-                    <p className="text-sm"><strong>Private Note:</strong></p>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setShowPrivateNotes(prev => ({
-                        ...prev,
-                        [withdrawal.id]: !prev[withdrawal.id]
-                      }))}
-                    >
-                      {showPrivateNotes[withdrawal.id] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </Button>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <p><strong>UPI ID:</strong> {request.upi_id || 'Not provided'}</p>
+                      {request.qr_url && (
+                        <p><strong>QR URL:</strong> 
+                          <a href={request.qr_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 ml-1">
+                            View QR
+                          </a>
+                        </p>
+                      )}
+                    </div>
+                    <div>
+                      {request.preferred_time_slot && (
+                        <p><strong>Preferred Time:</strong> {request.preferred_time_slot}</p>
+                      )}
+                      {request.auto_tags.length > 0 && (
+                        <div>
+                          <strong>Auto Tags:</strong>
+                          <div className="flex gap-1 mt-1">
+                            {request.auto_tags.map((tag, index) => (
+                              <Badge key={index} variant="outline" className="text-xs">
+                                {tag}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  {showPrivateNotes[withdrawal.id] && (
-                    <p className="text-sm mt-1">{withdrawal.private_notes}</p>
-                  )}
-                </div>
-              )}
 
-              {withdrawal.status === 'pending' && (
-                <div className="space-y-3">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="space-y-2">
                     <div>
                       <label className="text-sm font-medium">Public Note (visible to user)</label>
                       <Textarea
-                        placeholder="Add public note..."
-                        value={publicNotes[withdrawal.id] || ''}
-                        onChange={(e) => setPublicNotes(prev => ({
+                        value={adminNotes[request.id] || ''}
+                        onChange={(e) => setAdminNotes(prev => ({
                           ...prev,
-                          [withdrawal.id]: e.target.value
+                          [request.id]: e.target.value
                         }))}
-                        className="mt-1"
+                        placeholder="Add public note..."
+                        rows={2}
                       />
                     </div>
                     <div>
                       <label className="text-sm font-medium">Private Note (admin only)</label>
                       <Textarea
-                        placeholder="Add private note..."
-                        value={privateNotes[withdrawal.id] || ''}
+                        value={privateNotes[request.id] || ''}
                         onChange={(e) => setPrivateNotes(prev => ({
                           ...prev,
-                          [withdrawal.id]: e.target.value
+                          [request.id]: e.target.value
                         }))}
-                        className="mt-1"
+                        placeholder="Add private note..."
+                        rows={2}
                       />
                     </div>
                   </div>
-                  
-                  <div className="flex space-x-2">
+
+                  <div className="flex gap-2">
                     <Button
-                      onClick={() => handleApprove(withdrawal.id)}
-                      disabled={processing === `approve-${withdrawal.id}`}
-                      className="flex-1 bg-green-600 hover:bg-green-700"
+                      onClick={() => handleApproveWithdrawal(request.id)}
+                      disabled={processingIds.has(request.id)}
+                      className="flex items-center gap-1 bg-green-600 hover:bg-green-700"
                     >
-                      {processing === `approve-${withdrawal.id}` ? 'Processing...' : 'Approve'}
+                      <Check className="w-4 h-4" />
+                      Approve
                     </Button>
                     <Button
-                      onClick={() => handleReject(withdrawal.id)}
-                      disabled={processing === `reject-${withdrawal.id}`}
                       variant="destructive"
-                      className="flex-1"
+                      onClick={() => handleRejectWithdrawal(request.id)}
+                      disabled={processingIds.has(request.id)}
+                      className="flex items-center gap-1"
                     >
-                      {processing === `reject-${withdrawal.id}` ? 'Processing...' : 'Reject'}
+                      <X className="w-4 h-4" />
+                      Reject
                     </Button>
                   </div>
                 </div>
-              )}
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
-              {withdrawal.processed_at && (
-                <div className="text-sm text-muted-foreground">
-                  Processed: {formatDistanceToNow(new Date(withdrawal.processed_at), { addSuffix: true })}
+      {processedRequests.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Recent Processed Requests</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {processedRequests.slice(0, 10).map((request) => (
+                <div key={request.id} className="flex justify-between items-center p-2 border rounded">
+                  <span className="text-sm">
+                    #{request.id} - ₹{request.amount} - {formatDate(request.created_at)}
+                  </span>
+                  <Badge className={getStatusColor(request.status)}>
+                    {request.status}
+                  </Badge>
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        ))}
-
-        {filteredWithdrawals.length === 0 && (
-          <Card>
-            <CardContent className="text-center py-8">
-              <p className="text-muted-foreground">No withdrawal requests found</p>
-            </CardContent>
-          </Card>
-        )}
-      </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };

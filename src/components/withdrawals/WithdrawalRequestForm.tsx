@@ -1,68 +1,91 @@
 
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useAuth } from '@/hooks/useAuth';
-import { getUserWalletBalance } from '@/utils/transactionApi';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
-import { Clock, AlertCircle, Upload } from 'lucide-react';
-import { getWithdrawalSettings, isWithdrawalTimeAllowed, formatTimeForDisplay } from '@/utils/withdrawalTimeApi';
+import { Loader2, Clock, AlertCircle } from 'lucide-react';
+import { getUserWalletBalance } from '@/utils/transactionApi';
+
+interface WithdrawalTier {
+  id: number;
+  coins: number;
+  amount: number;
+}
 
 export const WithdrawalRequestForm = () => {
   const { user } = useAuth();
-  const [amount, setAmount] = useState<number>(0);
+  const [tiers, setTiers] = useState<WithdrawalTier[]>([]);
+  const [selectedTier, setSelectedTier] = useState<WithdrawalTier | null>(null);
   const [upiId, setUpiId] = useState('');
+  const [qrUrl, setQrUrl] = useState('');
   const [preferredTimeSlot, setPreferredTimeSlot] = useState('');
-  const [balance, setBalance] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [timeAllowed, setTimeAllowed] = useState(false);
-  const [withdrawalSettings, setWithdrawalSettings] = useState<any>(null);
+  const [balance, setBalance] = useState<number>(0);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [isWithdrawalTimeAllowed, setIsWithdrawalTimeAllowed] = useState(false);
 
   useEffect(() => {
-    if (user?.id) {
-      fetchBalance();
-      checkWithdrawalTime();
-      fetchWithdrawalSettings();
+    if (user) {
+      fetchWithdrawalTiers();
+      fetchUserBalance();
     }
+    checkWithdrawalTime();
+    
+    // Check withdrawal time every minute
+    const interval = setInterval(checkWithdrawalTime, 60000);
+    return () => clearInterval(interval);
   }, [user]);
 
-  const fetchBalance = async () => {
+  const checkWithdrawalTime = () => {
+    const now = new Date();
+    const currentHour = now.getHours();
+    
+    // Allow withdrawals between 18:00 (6 PM) and 22:00 (10 PM)
+    const isAllowed = currentHour >= 18 && currentHour < 22;
+    setIsWithdrawalTimeAllowed(isAllowed);
+    
+    console.log('Current hour:', currentHour, 'Withdrawal allowed:', isAllowed);
+  };
+
+  const fetchWithdrawalTiers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('withdrawal_tiers')
+        .select('*')
+        .order('coins', { ascending: true });
+
+      if (error) throw error;
+      setTiers(data || []);
+    } catch (error) {
+      console.error('Error fetching withdrawal tiers:', error);
+      toast.error('Failed to load withdrawal options');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchUserBalance = async () => {
     if (!user?.id) return;
-    const userBalance = await getUserWalletBalance(user.id);
-    setBalance(userBalance);
-  };
-
-  const checkWithdrawalTime = async () => {
-    const allowed = await isWithdrawalTimeAllowed();
-    setTimeAllowed(allowed);
-  };
-
-  const fetchWithdrawalSettings = async () => {
-    const settings = await getWithdrawalSettings();
-    setWithdrawalSettings(settings);
+    try {
+      const userBalance = await getUserWalletBalance(user.id);
+      setBalance(userBalance);
+    } catch (error) {
+      console.error('Error fetching balance:', error);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user?.id || loading) return;
+    
+    if (!user?.id || !selectedTier) return;
 
-    if (!timeAllowed) {
-      toast.error('Withdrawals can only be submitted between 6 PM and 10 PM');
-      return;
-    }
-
-    if (amount <= 0) {
-      toast.error('Please enter a valid withdrawal amount');
-      return;
-    }
-
-    if (amount > balance) {
-      toast.error('Insufficient balance');
+    if (!isWithdrawalTimeAllowed) {
+      toast.error('Withdrawals are only allowed between 6:00 PM and 10:00 PM');
       return;
     }
 
@@ -71,163 +94,180 @@ export const WithdrawalRequestForm = () => {
       return;
     }
 
-    setLoading(true);
+    if (balance < selectedTier.coins) {
+      toast.error('Insufficient balance for this withdrawal');
+      return;
+    }
+
+    setIsSubmitting(true);
 
     try {
-      // Check for existing pending withdrawals
-      const { data: pendingWithdrawals, error: pendingError } = await supabase
-        .from('withdrawals')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('status', 'pending');
-
-      if (pendingError) throw pendingError;
-
-      if (pendingWithdrawals && pendingWithdrawals.length > 0) {
-        toast.error('You already have a pending withdrawal request');
-        return;
-      }
-
-      // Create withdrawal request
-      const { error: withdrawalError } = await supabase
+      const { error } = await supabase
         .from('withdrawals')
         .insert({
           user_id: user.id,
-          amount,
-          upi_id: upiId,
+          amount: selectedTier.amount,
+          upi_id: upiId.trim(),
+          qr_url: qrUrl.trim() || null,
           preferred_time_slot: preferredTimeSlot || null,
-          status: 'pending',
-          admin_tags: ['New']
+          status: 'pending'
         });
 
-      if (withdrawalError) throw withdrawalError;
+      if (error) throw error;
 
-      // Create pending transaction
-      const { error: transactionError } = await supabase
-        .from('transactions')
-        .insert({
-          user_id: user.id,
-          type: 'withdrawal',
-          amount: -amount,
-          status: 'pending',
-          notes: `Withdrawal request to UPI: ${upiId}`,
-          is_real_coins: true
-        });
-
-      if (transactionError) throw transactionError;
-
-      toast.success('Withdrawal request submitted successfully');
-      setAmount(0);
+      toast.success('Withdrawal request submitted successfully!');
+      
+      // Reset form
+      setSelectedTier(null);
       setUpiId('');
+      setQrUrl('');
       setPreferredTimeSlot('');
-      fetchBalance();
+      fetchUserBalance();
+      
     } catch (error) {
       console.error('Error submitting withdrawal:', error);
       toast.error('Failed to submit withdrawal request');
     } finally {
-      setLoading(false);
+      setIsSubmitting(false);
     }
   };
 
-  const timeSlots = [
-    '6:00 PM - 7:00 PM',
-    '7:00 PM - 8:00 PM',
-    '8:00 PM - 9:00 PM',
-    '9:00 PM - 10:00 PM'
-  ];
+  if (loading) {
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <div className="flex items-center justify-center">
+            <Loader2 className="h-6 w-6 animate-spin" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const getCurrentTimeInfo = () => {
+    const now = new Date();
+    const currentTime = now.toLocaleTimeString('en-US', { 
+      hour12: false, 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
+    
+    if (isWithdrawalTimeAllowed) {
+      return `Current time: ${currentTime} - Withdrawals are open`;
+    } else {
+      return `Current time: ${currentTime} - Withdrawals allowed 18:00-22:00`;
+    }
+  };
 
   return (
-    <Card className="max-w-md mx-auto">
+    <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Clock className="w-5 h-5" />
           Request Withdrawal
         </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="bg-blue-50 p-3 rounded-lg">
-          <p className="text-sm text-blue-800">
-            <strong>Available Balance:</strong> {balance} coins
-          </p>
-          {withdrawalSettings && (
-            <p className="text-xs text-blue-600 mt-1">
-              Processing time: ~{withdrawalSettings.estimated_processing_hours} hours
-            </p>
-          )}
+        <div className={`flex items-center gap-2 text-sm ${
+          isWithdrawalTimeAllowed ? 'text-green-600' : 'text-red-600'
+        }`}>
+          <AlertCircle className="w-4 h-4" />
+          {getCurrentTimeInfo()}
         </div>
-
-        {!timeAllowed && (
-          <div className="bg-red-50 p-3 rounded-lg flex items-start gap-2">
-            <AlertCircle className="w-4 h-4 text-red-600 mt-0.5" />
-            <div>
-              <p className="text-sm text-red-800 font-medium">
-                Withdrawals Not Available
-              </p>
-              <p className="text-xs text-red-600">
-                {withdrawalSettings ? 
-                  `Submit requests between ${formatTimeForDisplay(withdrawalSettings.start_time)} and ${formatTimeForDisplay(withdrawalSettings.end_time)}` :
-                  'Submit requests between 6:00 PM and 10:00 PM'
-                }
-              </p>
+      </CardHeader>
+      <CardContent>
+        {!isWithdrawalTimeAllowed ? (
+          <div className="text-center py-8">
+            <AlertCircle className="w-12 h-12 text-yellow-500 mx-auto mb-4" />
+            <h3 className="text-lg font-medium mb-2">Withdrawal Window Closed</h3>
+            <p className="text-muted-foreground mb-4">
+              Withdrawals are only available between 6:00 PM and 10:00 PM daily.
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Please return during the allowed time window.
+            </p>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="bg-muted p-4 rounded-lg">
+              <p className="text-sm font-medium">Current Balance: {balance} coins</p>
             </div>
-          </div>
-        )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <Label htmlFor="amount">Withdrawal Amount (Coins)</Label>
-            <Input
-              id="amount"
-              type="number"
-              value={amount || ''}
-              onChange={(e) => setAmount(parseInt(e.target.value) || 0)}
-              max={balance}
-              min={1}
-              disabled={!timeAllowed || loading}
-              placeholder="Enter amount"
-            />
-          </div>
+            <div>
+              <Label htmlFor="tier">Withdrawal Amount</Label>
+              <Select onValueChange={(value) => {
+                const tier = tiers.find(t => t.id.toString() === value);
+                setSelectedTier(tier || null);
+              }}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select withdrawal amount" />
+                </SelectTrigger>
+                <SelectContent>
+                  {tiers.map((tier) => (
+                    <SelectItem 
+                      key={tier.id} 
+                      value={tier.id.toString()}
+                      disabled={balance < tier.coins}
+                    >
+                      {tier.coins} coins → ₹{tier.amount}
+                      {balance < tier.coins && ' (Insufficient balance)'}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-          <div>
-            <Label htmlFor="upiId">UPI ID</Label>
-            <Input
-              id="upiId"
-              type="text"
-              value={upiId}
-              onChange={(e) => setUpiId(e.target.value)}
-              disabled={!timeAllowed || loading}
-              placeholder="your-upi@bank"
-            />
-          </div>
+            <div>
+              <Label htmlFor="upiId">UPI ID *</Label>
+              <Input
+                id="upiId"
+                type="text"
+                value={upiId}
+                onChange={(e) => setUpiId(e.target.value)}
+                placeholder="example@paytm"
+                required
+              />
+            </div>
 
-          <div>
-            <Label htmlFor="timeSlot">Preferred Time Slot (Optional)</Label>
-            <Select 
-              value={preferredTimeSlot} 
-              onValueChange={setPreferredTimeSlot}
-              disabled={!timeAllowed || loading}
+            <div>
+              <Label htmlFor="qrUrl">QR Code URL (Optional)</Label>
+              <Input
+                id="qrUrl"
+                type="url"
+                value={qrUrl}
+                onChange={(e) => setQrUrl(e.target.value)}
+                placeholder="https://example.com/qr-code"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="timeSlot">Preferred Processing Time (Optional)</Label>
+              <Select onValueChange={setPreferredTimeSlot}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select preferred time" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="morning">Morning (9 AM - 12 PM)</SelectItem>
+                  <SelectItem value="afternoon">Afternoon (12 PM - 5 PM)</SelectItem>
+                  <SelectItem value="evening">Evening (5 PM - 9 PM)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <Button
+              type="submit"
+              disabled={isSubmitting || !selectedTier || !upiId.trim()}
+              className="w-full"
             >
-              <SelectTrigger>
-                <SelectValue placeholder="Select preferred time" />
-              </SelectTrigger>
-              <SelectContent>
-                {timeSlots.map((slot) => (
-                  <SelectItem key={slot} value={slot}>
-                    {slot}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <Button 
-            type="submit" 
-            className="w-full" 
-            disabled={!timeAllowed || loading || amount <= 0 || !upiId.trim()}
-          >
-            {loading ? 'Submitting...' : 'Submit Withdrawal Request'}
-          </Button>
-        </form>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                'Submit Withdrawal Request'
+              )}
+            </Button>
+          </form>
+        )}
       </CardContent>
     </Card>
   );

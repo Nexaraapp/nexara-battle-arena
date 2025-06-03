@@ -5,6 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { BookOpen, Shield, Award, AlertTriangle, Gamepad2, Target } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface Rule {
   id: string;
@@ -24,6 +25,7 @@ export const RulesPage = () => {
   }, []);
 
   const fetchRules = async () => {
+    setLoading(true);
     try {
       const { data, error } = await supabase
         .from('rules')
@@ -31,10 +33,17 @@ export const RulesPage = () => {
         .eq('is_active', true)
         .order('order_index', { ascending: true });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching rules:', error);
+        toast.error('Failed to load rules');
+        return;
+      }
+
+      console.log('Fetched rules:', data);
       setRules(data || []);
     } catch (error) {
       console.error('Error fetching rules:', error);
+      toast.error('Failed to load rules');
     } finally {
       setLoading(false);
     }
@@ -77,7 +86,7 @@ export const RulesPage = () => {
       return (
         <Card>
           <CardContent className="text-center py-12">
-            <div className={`${getCategoryColor(category)} mb-4`}>
+            <div className={`${getCategoryColor(category)} mb-4 flex justify-center`}>
               {getCategoryIcon(category)}
             </div>
             <p className="text-muted-foreground">No rules available for this category</p>
@@ -99,10 +108,9 @@ export const RulesPage = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div 
-                className="prose prose-sm max-w-none whitespace-pre-line"
-                dangerouslySetInnerHTML={{ __html: rule.content.replace(/\n/g, '<br>') }}
-              />
+              <div className="prose prose-sm max-w-none">
+                <p className="whitespace-pre-line">{rule.content}</p>
+              </div>
             </CardContent>
           </Card>
         ))}
@@ -111,7 +119,11 @@ export const RulesPage = () => {
   };
 
   if (loading) {
-    return <div className="text-center py-8">Loading rules...</div>;
+    return (
+      <div className="container mx-auto px-4 py-6">
+        <div className="text-center py-8">Loading rules...</div>
+      </div>
+    );
   }
 
   const categories = [

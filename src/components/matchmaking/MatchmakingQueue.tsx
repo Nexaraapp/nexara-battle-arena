@@ -1,12 +1,14 @@
 
-import { useState } from 'react';
+import React, { useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Timer, Users } from 'lucide-react';
-import { MatchType } from '@/utils/match/matchTypes';
-import { joinMatchQueue } from '@/utils/match/playerMatchOperations';
+import { Badge } from '@/components/ui/badge';
+import { Users, Trophy, Clock, Coins } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { getUserWalletBalance } from '@/utils/transactionApi';
 import { toast } from 'sonner';
+import { joinMatchmakingQueue } from '@/utils/match/matchmakingOperations';
+import { MatchType } from '@/utils/match/matchTypes';
 
 interface MatchmakingQueueProps {
   queueType: MatchType;
@@ -14,96 +16,100 @@ interface MatchmakingQueueProps {
   players: number;
   entryFee: number;
   prize: number;
-  estimatedWaitTime?: number;
-  playersInQueue?: number;
-  onJoinQueue?: (ticketId: string) => void;
+  estimatedWaitTime: number;
+  playersInQueue: number;
+  onJoinQueue: (ticketId: string) => void;
 }
 
-export const MatchmakingQueue = ({
+export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
   queueType,
   title,
   players,
   entryFee,
   prize,
-  estimatedWaitTime = 0,
-  playersInQueue = 0,
+  estimatedWaitTime,
+  playersInQueue,
   onJoinQueue
-}: MatchmakingQueueProps) => {
-  const [isJoining, setIsJoining] = useState(false);
+}) => {
   const { user } = useAuth();
+  const [isJoining, setIsJoining] = useState(false);
 
   const handleJoinQueue = async () => {
-    if (!user) {
-      toast.error("Please login to join a match");
+    if (!user?.id) {
+      toast.error('Please login to join matchmaking');
       return;
     }
-    
+
     setIsJoining(true);
     try {
-      const result = await joinMatchQueue(queueType, user.id, entryFee);
-      
-      if (result.success && result.ticketId) {
-        if (onJoinQueue) {
-          onJoinQueue(result.ticketId);
-        }
-        toast.success("Joined matchmaking queue");
-      } else {
-        toast.error(result.message || "Failed to join matchmaking");
+      // Check user balance
+      const balance = await getUserWalletBalance(user.id);
+      if (balance < entryFee) {
+        toast.error('Insufficient balance to join this match');
+        return;
       }
+
+      // Join queue immediately without any skill-based delays
+      const ticketId = await joinMatchmakingQueue(user.id, queueType, {
+        entryFee,
+        prize
+      });
+
+      onJoinQueue(ticketId);
+      toast.success('Joined matchmaking queue!');
+      
     } catch (error) {
-      console.error("Error joining queue:", error);
-      toast.error("Failed to join matchmaking queue");
+      console.error('Error joining queue:', error);
+      toast.error('Failed to join queue. Please try again.');
     } finally {
       setIsJoining(false);
     }
   };
 
   return (
-    <Card className="overflow-hidden border-2 border-nexara-accent/20 hover:border-nexara-accent/50 transition-all">
-      <CardHeader className="bg-nexara-accent/10 pb-2">
-        <CardTitle className="flex justify-between items-center">
-          <span>{title}</span>
-          <span className="text-sm font-normal bg-nexara-accent/20 px-2 py-1 rounded-md">
-            {players} Players
-          </span>
-        </CardTitle>
+    <Card className="h-full">
+      <CardHeader>
+        <CardTitle className="text-lg">{title}</CardTitle>
+        <div className="flex gap-2">
+          <Badge variant="outline" className="text-xs">
+            {queueType}
+          </Badge>
+          <Badge 
+            variant={playersInQueue > 0 ? "default" : "secondary"} 
+            className="text-xs"
+          >
+            {playersInQueue} in queue
+          </Badge>
+        </div>
       </CardHeader>
-      <CardContent className="pt-4">
+      <CardContent className="space-y-4">
         <div className="grid grid-cols-2 gap-4 text-sm">
-          <div>
-            <p className="text-gray-400">Entry Fee</p>
-            <p className="font-bold">{entryFee} coins</p>
-          </div>
-          <div>
-            <p className="text-gray-400">Prize Pool</p>
-            <p className="font-bold">{prize} coins</p>
+          <div className="flex items-center gap-2">
+            <Users className="w-4 h-4 text-blue-600" />
+            <span>{players} players</span>
           </div>
           <div className="flex items-center gap-2">
-            <Timer size={14} />
-            <span>~{estimatedWaitTime} sec wait</span>
+            <Coins className="w-4 h-4 text-yellow-600" />
+            <span>{entryFee} coins</span>
           </div>
           <div className="flex items-center gap-2">
-            <Users size={14} />
-            <span>{playersInQueue} in queue</span>
+            <Trophy className="w-4 h-4 text-green-600" />
+            <span>{prize} prize</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Clock className="w-4 h-4 text-purple-600" />
+            <span>~{estimatedWaitTime}s</span>
           </div>
         </div>
-      </CardContent>
-      <CardFooter className="bg-nexara-accent/5 pt-2">
-        <Button 
-          className="w-full bg-nexara-accent hover:bg-nexara-accent/90" 
+
+        <Button
           onClick={handleJoinQueue}
-          disabled={isJoining}
+          disabled={isJoining || !user}
+          className="w-full"
         >
-          {isJoining ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Finding Match...
-            </>
-          ) : (
-            'Join Queue'
-          )}
+          {isJoining ? 'Joining...' : `Join Queue (${entryFee} coins)`}
         </Button>
-      </CardFooter>
+      </CardContent>
     </Card>
   );
 };
