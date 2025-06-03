@@ -9,6 +9,12 @@ import { supabase } from '@/integrations/supabase/client';
 import { Users, Shield, Crown } from 'lucide-react';
 import { toast } from 'sonner';
 
+interface SupabaseUser {
+  id: string;
+  email?: string;
+  [key: string]: any;
+}
+
 const UserManagement = () => {
   const [searchEmail, setSearchEmail] = useState('');
 
@@ -16,7 +22,7 @@ const UserManagement = () => {
     queryKey: ['admin-users'],
     queryFn: async () => {
       const { data } = await supabase.auth.admin.listUsers();
-      return data.users;
+      return data.users as SupabaseUser[];
     }
   });
 

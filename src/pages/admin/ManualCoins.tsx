@@ -8,6 +8,12 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { DollarSign, Plus, Minus } from 'lucide-react';
 
+interface SupabaseUser {
+  id: string;
+  email?: string;
+  [key: string]: any;
+}
+
 const ManualCoins = () => {
   const [userEmail, setUserEmail] = useState('');
   const [amount, setAmount] = useState('');
@@ -24,8 +30,8 @@ const ManualCoins = () => {
     setLoading(true);
     try {
       // Find user by email
-      const { data: users } = await supabase.auth.admin.listUsers();
-      const user = users.users.find(u => u.email === userEmail);
+      const { data: userData } = await supabase.auth.admin.listUsers();
+      const user = userData.users.find((u: SupabaseUser) => u.email === userEmail);
       
       if (!user) {
         toast.error('User not found');
