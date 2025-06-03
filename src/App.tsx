@@ -23,6 +23,11 @@ import SuperadminDashboard from "./pages/admin/SuperadminDashboard";
 import TopUpRequests from "./pages/admin/TopUpRequests";
 import WithdrawalManager from "./pages/admin/WithdrawalManager";
 import MatchManagement from "./pages/admin/MatchManagement";
+import ManualCoins from "./pages/admin/ManualCoins";
+import UserManagement from "./pages/admin/UserManagement";
+import WithdrawalLogs from "./pages/admin/WithdrawalLogs";
+import RulesManagement from "./pages/admin/RulesManagement";
+import Settings from "./pages/admin/Settings";
 
 const queryClient = new QueryClient();
 
@@ -152,6 +157,22 @@ function App() {
               </RouteGuard>
             }
           />
+          <Route
+            path="/admin/users"
+            element={
+              <RouteGuard requireAuth requireRole="admin">
+                <UserManagement />
+              </RouteGuard>
+            }
+          />
+          <Route
+            path="/admin/settings"
+            element={
+              <RouteGuard requireAuth requireRole="admin">
+                <Settings />
+              </RouteGuard>
+            }
+          />
 
           {/* Superadmin routes */}
           <Route
@@ -159,6 +180,38 @@ function App() {
             element={
               <RouteGuard requireAuth requireRole="superadmin">
                 <SuperadminDashboard />
+              </RouteGuard>
+            }
+          />
+          <Route
+            path="/admin/user-management"
+            element={
+              <RouteGuard requireAuth requireRole="superadmin">
+                <UserManagement />
+              </RouteGuard>
+            }
+          />
+          <Route
+            path="/admin/withdrawal-logs"
+            element={
+              <RouteGuard requireAuth requireRole="superadmin">
+                <WithdrawalLogs />
+              </RouteGuard>
+            }
+          />
+          <Route
+            path="/admin/manual-coins"
+            element={
+              <RouteGuard requireAuth requireRole="superadmin">
+                <ManualCoins />
+              </RouteGuard>
+            }
+          />
+          <Route
+            path="/admin/rules-management"
+            element={
+              <RouteGuard requireAuth requireRole="superadmin">
+                <RulesManagement />
               </RouteGuard>
             }
           />
