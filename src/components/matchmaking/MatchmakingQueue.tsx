@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,7 +6,7 @@ import { Users, Trophy, Clock, Coins } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { getUserWalletBalance } from '@/utils/transactionApi';
 import { toast } from 'sonner';
-import { joinMatchmakingQueue } from '@/utils/match/matchmakingOperations';
+import { joinMatchQueue } from '@/utils/match/matchmakingOperations';
 import { MatchType } from '@/utils/match/matchTypes';
 
 interface MatchmakingQueueProps {
@@ -50,13 +49,14 @@ export const MatchmakingQueue: React.FC<MatchmakingQueueProps> = ({
       }
 
       // Join queue immediately without any skill-based delays
-      const ticketId = await joinMatchmakingQueue(user.id, queueType, {
-        entryFee,
-        prize
-      });
-
-      onJoinQueue(ticketId);
-      toast.success('Joined matchmaking queue!');
+      const result = await joinMatchQueue(queueType, user.id, entryFee);
+      
+      if (result.success && result.ticketId) {
+        onJoinQueue(result.ticketId);
+        toast.success('Joined matchmaking queue!');
+      } else {
+        toast.error(result.message || 'Failed to join queue');
+      }
       
     } catch (error) {
       console.error('Error joining queue:', error);
