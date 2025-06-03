@@ -2,8 +2,7 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { AuthProvider } from "./hooks/useAuth";
+import { Routes, Route } from "react-router-dom";
 import { RouteGuard } from "./components/guards/RouteGuard";
 import Index from "./pages/Index";
 import Login from "./pages/auth/Login";
@@ -32,145 +31,141 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
-        <BrowserRouter>
-          <AuthProvider>
-            <Routes>
-              {/* Public routes */}
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
-              <Route path="/admin-login" element={<AdminLogin />} />
+        <Routes>
+          {/* Public routes */}
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/admin-login" element={<AdminLogin />} />
 
-              {/* Protected user routes */}
-              <Route
-                path="/"
-                element={
-                  <RouteGuard requireAuth>
-                    <Index />
-                  </RouteGuard>
-                }
-              />
-              <Route
-                path="/profile"
-                element={
-                  <RouteGuard requireAuth>
-                    <Profile />
-                  </RouteGuard>
-                }
-              />
-              <Route
-                path="/wallet"
-                element={
-                  <RouteGuard requireAuth>
-                    <Wallet />
-                  </RouteGuard>
-                }
-              />
-              <Route
-                path="/withdraw"
-                element={
-                  <RouteGuard requireAuth>
-                    <WithdrawalPage />
-                  </RouteGuard>
-                }
-              />
-              <Route
-                path="/notifications"
-                element={
-                  <RouteGuard requireAuth>
-                    <Notifications />
-                  </RouteGuard>
-                }
-              />
-              <Route
-                path="/referral"
-                element={
-                  <RouteGuard requireAuth>
-                    <ReferralPage />
-                  </RouteGuard>
-                }
-              />
-              <Route
-                path="/achievements"
-                element={
-                  <RouteGuard requireAuth>
-                    <AchievementsPage />
-                  </RouteGuard>
-                }
-              />
-              <Route
-                path="/matches"
-                element={
-                  <RouteGuard requireAuth>
-                    <Matches />
-                  </RouteGuard>
-                }
-              />
-              <Route
-                path="/matches-list"
-                element={
-                  <RouteGuard requireAuth>
-                    <MatchesListPage />
-                  </RouteGuard>
-                }
-              />
-              <Route
-                path="/match/:matchId"
-                element={
-                  <RouteGuard requireAuth>
-                    <MatchDetailPage />
-                  </RouteGuard>
-                }
-              />
+          {/* Protected user routes */}
+          <Route
+            path="/"
+            element={
+              <RouteGuard requireAuth>
+                <Index />
+              </RouteGuard>
+            }
+          />
+          <Route
+            path="/profile"
+            element={
+              <RouteGuard requireAuth>
+                <Profile />
+              </RouteGuard>
+            }
+          />
+          <Route
+            path="/wallet"
+            element={
+              <RouteGuard requireAuth>
+                <Wallet />
+              </RouteGuard>
+            }
+          />
+          <Route
+            path="/withdraw"
+            element={
+              <RouteGuard requireAuth>
+                <WithdrawalPage />
+              </RouteGuard>
+            }
+          />
+          <Route
+            path="/notifications"
+            element={
+              <RouteGuard requireAuth>
+                <Notifications />
+              </RouteGuard>
+            }
+          />
+          <Route
+            path="/referral"
+            element={
+              <RouteGuard requireAuth>
+                <ReferralPage />
+              </RouteGuard>
+            }
+          />
+          <Route
+            path="/achievements"
+            element={
+              <RouteGuard requireAuth>
+                <AchievementsPage />
+              </RouteGuard>
+            }
+          />
+          <Route
+            path="/matches"
+            element={
+              <RouteGuard requireAuth>
+                <Matches />
+              </RouteGuard>
+            }
+          />
+          <Route
+            path="/matches-list"
+            element={
+              <RouteGuard requireAuth>
+                <MatchesListPage />
+              </RouteGuard>
+            }
+          />
+          <Route
+            path="/match/:matchId"
+            element={
+              <RouteGuard requireAuth>
+                <MatchDetailPage />
+              </RouteGuard>
+            }
+          />
 
-              {/* Admin routes */}
-              <Route
-                path="/admin/dashboard"
-                element={
-                  <RouteGuard requireAuth requireRole="admin">
-                    <AdminDashboard />
-                  </RouteGuard>
-                }
-              />
-              <Route
-                path="/admin/topup-requests"
-                element={
-                  <RouteGuard requireAuth requireRole="admin">
-                    <TopUpRequests />
-                  </RouteGuard>
-                }
-              />
-              <Route
-                path="/admin/withdrawals"
-                element={
-                  <RouteGuard requireAuth requireRole="admin">
-                    <WithdrawalManager />
-                  </RouteGuard>
-                }
-              />
-              <Route
-                path="/admin/matches"
-                element={
-                  <RouteGuard requireAuth requireRole="admin">
-                    <MatchManagement />
-                  </RouteGuard>
-                }
-              />
+          {/* Admin routes */}
+          <Route
+            path="/admin/dashboard"
+            element={
+              <RouteGuard requireAuth requireRole="admin">
+                <AdminDashboard />
+              </RouteGuard>
+            }
+          />
+          <Route
+            path="/admin/topup-requests"
+            element={
+              <RouteGuard requireAuth requireRole="admin">
+                <TopUpRequests />
+              </RouteGuard>
+            }
+          />
+          <Route
+            path="/admin/withdrawals"
+            element={
+              <RouteGuard requireAuth requireRole="admin">
+                <WithdrawalManager />
+              </RouteGuard>
+            }
+          />
+          <Route
+            path="/admin/matches"
+            element={
+              <RouteGuard requireAuth requireRole="admin">
+                <MatchManagement />
+              </RouteGuard>
+            }
+          />
 
-              {/* Superadmin routes */}
-              <Route
-                path="/superadmin/dashboard"
-                element={
-                  <RouteGuard requireAuth requireRole="superadmin">
-                    <SuperadminDashboard />
-                  </RouteGuard>
-                }
-              />
+          {/* Superadmin routes */}
+          <Route
+            path="/superadmin/dashboard"
+            element={
+              <RouteGuard requireAuth requireRole="superadmin">
+                <SuperadminDashboard />
+              </RouteGuard>
+            }
+          />
 
-              {/* 404 route */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </AuthProvider>
-        </BrowserRouter>
+          {/* 404 route */}
+          <Route path="*" element={<NotFound />} />
+        </Routes>
       </TooltipProvider>
     </QueryClientProvider>
   );
