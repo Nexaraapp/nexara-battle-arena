@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
-import { BookOpen, Shield, Award, AlertTriangle, Gamepad2 } from 'lucide-react';
+import { BookOpen, Shield, Award, AlertTriangle, Gamepad2, Target } from 'lucide-react';
 
 interface Rule {
   id: string;
@@ -46,10 +46,10 @@ export const RulesPage = () => {
 
   const getCategoryIcon = (category: string) => {
     switch (category) {
-      case 'gameplay':
+      case 'battle_royale':
         return <Gamepad2 className="w-5 h-5" />;
-      case 'withdrawal':
-        return <Award className="w-5 h-5" />;
+      case 'clash_squad':
+        return <Target className="w-5 h-5" />;
       case 'penalties':
         return <AlertTriangle className="w-5 h-5" />;
       default:
@@ -59,9 +59,9 @@ export const RulesPage = () => {
 
   const getCategoryColor = (category: string) => {
     switch (category) {
-      case 'gameplay':
+      case 'battle_royale':
         return 'text-blue-600';
-      case 'withdrawal':
+      case 'clash_squad':
         return 'text-green-600';
       case 'penalties':
         return 'text-red-600';
@@ -100,7 +100,7 @@ export const RulesPage = () => {
             </CardHeader>
             <CardContent>
               <div 
-                className="prose prose-sm max-w-none"
+                className="prose prose-sm max-w-none whitespace-pre-line"
                 dangerouslySetInnerHTML={{ __html: rule.content.replace(/\n/g, '<br>') }}
               />
             </CardContent>
@@ -116,9 +116,9 @@ export const RulesPage = () => {
 
   const categories = [
     { key: 'general', label: 'General Rules', icon: BookOpen },
-    { key: 'gameplay', label: 'Gameplay Rules', icon: Gamepad2 },
-    { key: 'withdrawal', label: 'Withdrawal Policy', icon: Award },
-    { key: 'penalties', label: 'Penalties & Violations', icon: AlertTriangle }
+    { key: 'battle_royale', label: 'Battle Royale', icon: Gamepad2 },
+    { key: 'clash_squad', label: 'Clash Squad', icon: Target },
+    { key: 'penalties', label: 'Penalties & Tags', icon: AlertTriangle }
   ];
 
   return (
